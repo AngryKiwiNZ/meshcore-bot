@@ -12,9 +12,10 @@ Provides scheduled weather forecasts, weather alerts, and lightning detection.
 [Weather_Service]
 enabled = true
 
-# Your location (required)
+# Your location (choose one option)
 my_position_lat = 47.6062
 my_position_lon = -122.3321
+# weather_location = Seattle, WA
 
 # Daily forecast time
 weather_alarm = 6:00              # Or "sunrise" / "sunset"
@@ -35,12 +36,16 @@ alerts_channel = #weather
 ```ini
 [Weather_Service]
 enabled = true
-my_position_lat = 47.6062         # Your latitude (required)
-my_position_lon = -122.3321       # Your longitude (required)
+my_position_lat = 47.6062         # Option A: latitude
+my_position_lon = -122.3321       # Option A: longitude
+# weather_location = Seattle, WA  # Option B: place name (Open-Meteo geocoding)
 weather_alarm = 6:00              # Time for daily forecast (HH:MM or sunrise/sunset)
 weather_channel = #weather        # Channel for forecasts
 alerts_channel = #weather         # Channel for weather alerts
 ```
+
+`weather_location` is useful when you want to configure by city/place instead of coordinates.
+If both are set, `weather_location` is used to resolve coordinates on service startup.
 
 ### Alert Polling
 

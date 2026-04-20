@@ -50,10 +50,14 @@ class WeatherService(BaseServicePlugin):
         
         # Configuration
         self.weather_alarm_time = self.bot.config.get('Weather_Service', 'weather_alarm', fallback='6:00')
+        self.weather_location = self.bot.config.get('Weather_Service', 'weather_location', fallback='').strip()
         self.my_position_lat = self.bot.config.getfloat('Weather_Service', 'my_position_lat', fallback=None)
         self.my_position_lon = self.bot.config.getfloat('Weather_Service', 'my_position_lon', fallback=None)
         self.weather_channel = self.bot.config.get('Weather_Service', 'weather_channel', fallback='general')
         self.alerts_channel = self.bot.config.get('Weather_Service', 'alerts_channel', fallback='general')
+        
+        # Cache for location name (to avoid repeated reverse geocoding)
+        self._cached_location_name: Optional[str] = None
         
         # Polling intervals (in milliseconds, converted to seconds)
         self.blitz_collection_interval = self.bot.config.getint('Weather_Service', 'blitz_collection_interval', fallback=600000) / 1000.0
@@ -69,14 +73,20 @@ class WeatherService(BaseServicePlugin):
                 'max_lon': self.bot.config.getfloat('Weather_Service', 'blitz_area_max_lon'),
             }
         
-        # Validate position
-        if self.my_position_lat is None or self.my_position_lon is None:
-            self.logger.warning("Weather service requires my_position_lat and my_position_lon in config")
-            self.enabled = False
-            return
-        
         # Create retry-enabled session for API calls
         self.api_session = self._create_retry_session()
+
+        # Resolve location if configured
+        if self.weather_location:
+            self._resolve_weather_location()
+
+        # Validate position
+        if self.my_position_lat is None or self.my_position_lon is None:
+            self.logger.warning(
+                "Weather service requires my_position_lat/my_position_lon or weather_location in config"
+            )
+            self.enabled = False
+            return
         
         # Get temperature/wind units from config (for Open-Meteo)
         self.temperature_unit = self.bot.config.get('Weather', 'temperature_unit', fallback='fahrenheit')
@@ -108,10 +118,47 @@ class WeatherService(BaseServicePlugin):
         # Check if using sunrise/sunset
         self.use_sunrise_sunset = self.weather_alarm_time.lower() in ['sunrise', 'sunset']
         
-        # Cache for location name (to avoid repeated reverse geocoding)
-        self._cached_location_name: Optional[str] = None
-        
         self.logger.info(f"Weather service initialized: position=({self.my_position_lat}, {self.my_position_lon}), alarm={self.weather_alarm_time}")
+
+    def _resolve_weather_location(self) -> None:
+        """Resolve configured weather_location to latitude/longitude via Open-Meteo geocoding."""
+        try:
+            geocode_url = "https://geocoding-api.open-meteo.com/v1/search"
+            params = {
+                'name': self.weather_location,
+                'count': 1,
+                'language': 'en',
+                'format': 'json',
+            }
+            response = self.api_session.get(geocode_url, params=params, timeout=10)
+            if not response.ok:
+                self.logger.warning(
+                    f"Failed to geocode weather_location '{self.weather_location}': HTTP {response.status_code}"
+                )
+                return
+
+            data = response.json()
+            results = data.get('results') or []
+            if not results:
+                self.logger.warning(f"No geocoding results found for weather_location '{self.weather_location}'")
+                return
+
+            best_match = results[0]
+            self.my_position_lat = float(best_match.get('latitude'))
+            self.my_position_lon = float(best_match.get('longitude'))
+            resolved_name = best_match.get('name', self.weather_location)
+            country = best_match.get('country')
+            if country:
+                resolved_name = f"{resolved_name}, {country}"
+
+            # Use resolved place as location label in forecast output
+            self._cached_location_name = resolved_name
+            self.logger.info(
+                f"Resolved weather_location '{self.weather_location}' to "
+                f"({self.my_position_lat}, {self.my_position_lon}) [{resolved_name}]"
+            )
+        except Exception as e:
+            self.logger.warning(f"Error geocoding weather_location '{self.weather_location}': {e}")
     
     def _create_retry_session(self) -> requests.Session:
         """Create a requests session with retry logic for API calls.
@@ -1701,4 +1748,3 @@ class WeatherService(BaseServicePlugin):
         except Exception as e:
             self.logger.debug(f"Unexpected error shortening URL: {e}")
             return ""
-

@@ -1429,6 +1429,11 @@ my_position_lat =
 # Longitude in decimal degrees
 my_position_lon = 
 
+# Alternative to coordinates: location name resolved with Open-Meteo geocoding
+# Examples: "Seattle, WA", "Berlin, Germany", "Tokyo"
+# If set, weather service will resolve this to my_position_lat/my_position_lon at startup
+weather_location = 
+
 # Channel for daily weather forecasts
 # Weather forecasts will be sent to this channel
 weather_channel = #weather
