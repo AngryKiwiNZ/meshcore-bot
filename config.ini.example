@@ -518,11 +518,10 @@ prefix_best_do_not_suggest =
 # NOTE: Unit settings are used by both the wx and gwx commands and Weather_Service plugin
 
 # Weather provider selection
-# Options: noaa, openmeteo
-#   noaa: Use NOAA API (US-focused, better for US locations, includes weather alerts)
+# Options: openmeteo
 #   openmeteo: Use Open-Meteo API (global coverage, works worldwide)
-# Default: noaa
-weather_provider = noaa
+# Default: openmeteo
+weather_provider = openmeteo
 
 # Default state for city name disambiguation
 # When users type "wx seattle", it will search for "seattle, WA, USA"

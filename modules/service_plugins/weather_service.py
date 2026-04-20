@@ -33,12 +33,12 @@ from .base_service import BaseServicePlugin
 class WeatherService(BaseServicePlugin):
     """Weather service providing scheduled forecasts and alert monitoring.
     
-    Manages daily weather forecasts, polls for NOAA weather alerts, and
-    monitors lightning strikes via MQTT (Blitzortung).
+    Manages daily Open-Meteo weather forecasts and monitors lightning
+    strikes via MQTT (Blitzortung).
     """
     
     config_section = 'Weather_Service'
-    description = "Scheduled weather forecasts and alert monitoring"
+    description = "Scheduled Open-Meteo weather forecasts and lightning monitoring"
     
     def __init__(self, bot: Any):
         """Initialize weather service.
@@ -233,8 +233,8 @@ class WeatherService(BaseServicePlugin):
             # For fixed times, use schedule library
             self._setup_daily_forecast()
         
-        # Start background tasks
-        self._alerts_task = asyncio.create_task(self._poll_weather_alerts_loop())
+        # NOAA alerts are disabled by design for Open-Meteo-only deployments.
+        self._alerts_task = None
         
         # Start lightning detection if area is configured
         if self.blitz_area and MQTT_AVAILABLE:
