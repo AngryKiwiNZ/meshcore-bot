@@ -363,6 +363,22 @@ class GlobalWxCommand(BaseCommand):
             return None
     
     
+    async def _send_multi_messages(self, message: MeshMessage, messages: List[str]) -> None:
+        """Send multiple weather messages with TX spacing."""
+        import asyncio
+
+        filtered_messages = [entry for entry in messages if entry]
+        if not filtered_messages:
+            return
+
+        rate_limit = self.bot.config.getfloat('Bot', 'bot_tx_rate_limit_seconds', fallback=1.0)
+        sleep_time = max(rate_limit + 1.0, 2.0)
+
+        for index, entry in enumerate(filtered_messages):
+            if index > 0:
+                await asyncio.sleep(sleep_time)
+            await self.send_response(message, entry)
+
     async def execute(self, message: MeshMessage) -> bool:
         """Execute the weather command.
         
@@ -470,17 +486,10 @@ class GlobalWxCommand(BaseCommand):
             
             # Check if we need to send multiple messages (for alerts)
             if isinstance(weather_data, tuple) and weather_data[0] == "multi_message":
-                # Send weather data first
-                await self.send_response(message, weather_data[1])
-                
-                # Wait for bot TX rate limiter
-                import asyncio
-                rate_limit = self.bot.config.getfloat('Bot', 'bot_tx_rate_limit_seconds', fallback=1.0)
-                sleep_time = max(rate_limit + 1.0, 2.0)
-                await asyncio.sleep(sleep_time)
-                
-                # Send alerts
-                await self.send_response(message, weather_data[2])
+                if isinstance(weather_data[1], list):
+                    await self._send_multi_messages(message, weather_data[1])
+                else:
+                    await self._send_multi_messages(message, list(weather_data[1:]))
             elif forecast_type == "multiday":
                 # Use message splitting for multi-day forecasts
                 await self._send_multiday_forecast(message, weather_data)
@@ -494,7 +503,7 @@ class GlobalWxCommand(BaseCommand):
             await self.send_response(message, self.translate('commands.gwx.error', error=str(e)))
             return True
     
-    async def get_weather_for_location(self, location: str, forecast_type: str = "default", num_days: int = 7, message: MeshMessage = None) -> Union[str, Tuple[str, str, str]]:
+    async def get_weather_for_location(self, location: str, forecast_type: str = "default", num_days: int = 7, message: MeshMessage = None) -> Union[str, Tuple[str, List[str]]]:
         """Get weather data for any global location.
         
         Args:
@@ -535,13 +544,20 @@ class GlobalWxCommand(BaseCommand):
             if weather_text == error_fetching or weather_text == self.ERROR_FETCHING_DATA:
                 return self.translate('commands.gwx.error_fetching_api')
             
+            followup_messages: List[str] = []
+            if forecast_type == "default":
+                followup_messages = self.get_open_meteo_followup_forecasts(lat, lon, location_display)
+
             # Check for severe weather warnings (only for default forecast type)
             if forecast_type == "default":
                 alert_text = self._check_extreme_conditions(weather_text)
                 
-                if alert_text:
-                    # Return multi-message format
-                    return ("multi_message", f"{location_display}: {weather_text}", alert_text)
+                if followup_messages or alert_text:
+                    messages = [f"{location_display}: {weather_text}"]
+                    messages.extend(followup_messages)
+                    if alert_text:
+                        messages.append(alert_text)
+                    return ("multi_message", messages)
             
             return f"{location_display}: {weather_text}"
             
@@ -1006,7 +1022,46 @@ class GlobalWxCommand(BaseCommand):
         except Exception as e:
             self.logger.error(f"Error fetching Open-Meteo weather: {e}")
             return self.translate('commands.gwx.error_fetching')
-    
+
+    def get_open_meteo_followup_forecasts(self, lat: float, lon: float, location_display: str) -> List[str]:
+        """Get separate tomorrow and day-after forecast messages."""
+        try:
+            api_url = "https://api.open-meteo.com/v1/forecast"
+            params = {
+                'latitude': lat,
+                'longitude': lon,
+                'daily': 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max',
+                'temperature_unit': self.temperature_unit,
+                'wind_speed_unit': self.wind_speed_unit,
+                'precipitation_unit': self.precipitation_unit,
+                'timezone': 'auto',
+                'forecast_days': 3
+            }
+
+            response = requests.get(api_url, params=params, timeout=self.url_timeout)
+            if not response.ok:
+                self.logger.warning(f"Error fetching follow-up forecast from Open-Meteo: {response.status_code}")
+                return []
+
+            data = response.json()
+            messages: List[str] = []
+
+            tomorrow = self.format_tomorrow_forecast(data)
+            if tomorrow not in {
+                self.translate('commands.gwx.tomorrow_not_available'),
+                self.translate('commands.gwx.tomorrow_error')
+            }:
+                messages.append(f"{location_display}: {tomorrow}")
+
+            day_after = self.format_day_after_forecast(data)
+            if day_after:
+                messages.append(f"{location_display}: {day_after}")
+
+            return messages
+        except Exception as e:
+            self.logger.error(f"Error fetching follow-up forecasts: {e}")
+            return []
+
     def format_tomorrow_forecast(self, data: dict) -> str:
         """Format a detailed forecast for tomorrow.
         
@@ -1064,6 +1119,49 @@ class GlobalWxCommand(BaseCommand):
         except Exception as e:
             self.logger.error(f"Error formatting tomorrow forecast: {e}")
             return self.translate('commands.gwx.tomorrow_error')
+
+    def format_day_after_forecast(self, data: dict) -> Optional[str]:
+        """Format a detailed forecast for the day after tomorrow."""
+        try:
+            daily = data.get('daily', {})
+            if not daily or len(daily.get('temperature_2m_max', [])) < 3:
+                return None
+
+            temp_symbol = "°F" if self.temperature_unit == 'fahrenheit' else "°C"
+            day_after_high = int(daily['temperature_2m_max'][2])
+            day_after_low = int(daily['temperature_2m_min'][2])
+            day_after_code = daily['weather_code'][2]
+            day_after_emoji = self._get_weather_emoji(day_after_code)
+            day_after_desc = self._get_weather_description(day_after_code)
+
+            day_label = (datetime.now() + timedelta(days=2)).strftime('%a')
+            result = f"{day_label}: {day_after_emoji}{day_after_desc} {day_after_high}{temp_symbol}/{day_after_low}{temp_symbol}"
+
+            if len(daily.get('wind_speed_10m_max', [])) > 2:
+                wind_speed = int(daily['wind_speed_10m_max'][2])
+                if wind_speed >= 3:
+                    result += f" {wind_speed}{self._wind_speed_suffix()}"
+                    if len(daily.get('wind_gusts_10m_max', [])) > 2:
+                        wind_gusts = int(daily['wind_gusts_10m_max'][2])
+                        if wind_gusts > wind_speed + 3:
+                            result += f" gust {wind_gusts}"
+
+            if len(daily.get('precipitation_probability_max', [])) > 2:
+                precip_prob = daily['precipitation_probability_max'][2]
+                if precip_prob >= 30:
+                    precip_amount = None
+                    if len(daily.get('precipitation_sum', [])) > 2:
+                        precip_amount = daily['precipitation_sum'][2]
+                    if precip_amount is not None and precip_amount > 0:
+                        precip_unit = "in" if self.precipitation_unit == 'inch' else "mm"
+                        result += f" 🌦️{precip_prob}% {precip_amount:.2f}{precip_unit}"
+                    else:
+                        result += f" 🌦️{precip_prob}%"
+
+            return result
+        except Exception as e:
+            self.logger.error(f"Error formatting day-after forecast: {e}")
+            return None
     
     def format_multiday_forecast(self, data: dict, num_days: int = 7) -> str:
         """Format a less detailed multi-day forecast summary.
