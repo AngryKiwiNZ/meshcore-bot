@@ -675,6 +675,15 @@ track_command_details = true
 # false: Keep actual user IDs in stats
 anonymize_users = false
 
+[Telemetry_Command]
+# Enable or disable the telemetry leaderboard command
+enabled = true
+
+# Log when new records are broken
+# true: Log info messages when new extreme metrics are detected
+# false: Only display stats, don't log record breaks
+log_records = true
+
 [Data_Retention]
 # Data retention controls how long the bot keeps data in the database.
 # The scheduler runs cleanup daily so retention is enforced even when the
