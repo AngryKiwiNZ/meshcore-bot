@@ -364,20 +364,14 @@ class GlobalWxCommand(BaseCommand):
     
     
     async def _send_multi_messages(self, message: MeshMessage, messages: List[str]) -> None:
-        """Send multiple weather messages with TX spacing."""
-        import asyncio
-
+        """Send multiple weather messages via the shared multipart sender."""
         filtered_messages = [entry for entry in messages if entry]
         if not filtered_messages:
             return
-
-        rate_limit = self.bot.config.getfloat('Bot', 'bot_tx_rate_limit_seconds', fallback=1.0)
-        sleep_time = max(rate_limit + 1.0, 2.0)
-
-        for index, entry in enumerate(filtered_messages):
-            if index > 0:
-                await asyncio.sleep(sleep_time)
-            await self.send_response(message, entry)
+        if len(filtered_messages) == 1:
+            await self.send_response(message, filtered_messages[0])
+            return
+        await self.send_response_chunked(message, filtered_messages, skip_user_rate_limit_first=False)
 
     async def execute(self, message: MeshMessage) -> bool:
         """Execute the weather command.
