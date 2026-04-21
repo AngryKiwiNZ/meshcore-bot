@@ -121,33 +121,32 @@ channels #general
 
 ---
 
-### `wx <zipcode>`
+### `wx <location>`
 
-Get weather information for a US zip code using NOAA data.
+Get global weather information using Open-Meteo API.
 
 **Aliases:** `weather`, `wxa`, `wxalert`
 
 **Usage:**
 ```
-wx <zipcode>
-weather <zipcode>
-wxa <zipcode>
-wxalert <zipcode>
+wx <location>
+weather <location>
+wxa <location>
+wxalert <location>
 ```
 
 **Examples:**
 ```
-wx 98101
-weather 90210
-wxa 10001
+wx Auckland
+weather Nelson
+wxa Wellington tomorrow
 ```
 
-**Response:** Current weather conditions, forecast for tonight/tomorrow, and active weather alerts. Includes:
+**Response:** Current weather conditions and forecast summary. Includes:
 - Current conditions (temperature, humidity, wind, etc.)
 - Short-term forecast (tonight, tomorrow)
-- Weather alerts if any are active
 
-**Note:** Weather alerts are automatically included when available.
+**Default location behavior:** If no location is provided and no companion location is available, bot falls back to `default_weather_location` (default: `Nelson, New Zealand`).
 
 ---
 
@@ -163,6 +162,7 @@ gwx <location>
 globalweather <location>
 gwxa <location>
 ```
+If no location is provided, it uses companion location when available; otherwise it falls back to `default_weather_location`.
 
 **Examples:**
 ```
@@ -883,4 +883,3 @@ feed test https://example.com/feed.xml
 ---
 
 For more information about configuring the bot, see the main [README](https://github.com/agessaman/meshcore-bot/blob/main/README.md) file.
-

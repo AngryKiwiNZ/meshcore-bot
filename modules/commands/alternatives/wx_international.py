@@ -64,6 +64,9 @@ class GlobalWxCommand(BaseCommand):
         # Get default state and country from config for city disambiguation
         self.default_state = self.bot.config.get('Weather', 'default_state', fallback='')
         self.default_country = self.bot.config.get('Weather', 'default_country', fallback='US')
+        self.default_weather_location = self.bot.config.get(
+            'Weather', 'default_weather_location', fallback='Nelson, New Zealand'
+        ).strip() or 'Nelson, New Zealand'
         
         # Get unit preferences from config
         self.temperature_unit = self.bot.config.get('Weather', 'temperature_unit', fallback='fahrenheit').lower()
@@ -387,10 +390,12 @@ class GlobalWxCommand(BaseCommand):
                     parts = [parts[0], location_str]
                     self.logger.info(f"Using companion coordinates: {location_str}")
             else:
-                # No companion location available, show usage
-                self.logger.debug("No companion location found, showing usage")
-                await self.send_response(message, self.translate('commands.gwx.usage'))
-                return True
+                # No companion location available, fall back to configured default location
+                default_location = self.default_weather_location
+                parts = [parts[0], default_location]
+                self.logger.info(
+                    f"No companion location found; using default weather location: {default_location}"
+                )
         
         # Check for forecast type options: "tomorrow", or a number 2-7
         forecast_type = "default"
@@ -419,8 +424,8 @@ class GlobalWxCommand(BaseCommand):
         location = ' '.join(location_parts).strip()
         
         if not location:
-            await self.send_response(message, self.translate('commands.gwx.usage'))
-            return True
+            location = self.default_weather_location
+            self.logger.info(f"No location provided after parsing; using default weather location: {location}")
         
         # Check for custom WXSIM source first (before normal geocoding)
         wxsim_source = self._get_custom_wxsim_source(location)

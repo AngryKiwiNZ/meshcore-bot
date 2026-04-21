@@ -518,11 +518,10 @@ prefix_best_do_not_suggest =
 # NOTE: Unit settings are used by both the wx and gwx commands and Weather_Service plugin
 
 # Weather provider selection
-# Options: noaa, openmeteo
-#   noaa: Use NOAA API (US-focused, better for US locations, includes weather alerts)
+# Options: openmeteo
 #   openmeteo: Use Open-Meteo API (global coverage, works worldwide)
-# Default: noaa
-weather_provider = noaa
+# Default: openmeteo
+weather_provider = openmeteo
 
 # Default state for city name disambiguation
 # When users type "wx seattle", it will search for "seattle, WA, USA"
@@ -532,6 +531,10 @@ default_state = WA
 # Default country for city name disambiguation (for international weather plugin)
 # Use 2-letter country code (e.g., US, CA, GB, AU)
 default_country = US
+
+# Default location when users run wx/weather without providing a location
+# Used when companion location is unavailable
+default_weather_location = Nelson, New Zealand
 
 # Temperature unit for weather display
 # Options: fahrenheit, celsius
@@ -1428,6 +1431,11 @@ my_position_lat =
 
 # Longitude in decimal degrees
 my_position_lon = 
+
+# Alternative to coordinates: location name resolved with Open-Meteo geocoding
+# Examples: "Seattle, WA", "Berlin, Germany", "Tokyo"
+# If set, weather service will resolve this to my_position_lat/my_position_lon at startup
+weather_location = 
 
 # Channel for daily weather forecasts
 # Weather forecasts will be sent to this channel
