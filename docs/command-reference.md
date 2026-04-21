@@ -121,33 +121,32 @@ channels #general
 
 ---
 
-### `wx <zipcode>`
+### `wx <location>`
 
-Get weather information for a US zip code using NOAA data.
+Get global weather information using Open-Meteo API.
 
 **Aliases:** `weather`, `wxa`, `wxalert`
 
 **Usage:**
 ```
-wx <zipcode>
-weather <zipcode>
-wxa <zipcode>
-wxalert <zipcode>
+wx <location>
+weather <location>
+wxa <location>
+wxalert <location>
 ```
 
 **Examples:**
 ```
-wx 98101
-weather 90210
-wxa 10001
+wx Auckland
+weather Nelson
+wxa Wellington tomorrow
 ```
 
-**Response:** Current weather conditions, forecast for tonight/tomorrow, and active weather alerts. Includes:
+**Response:** Current weather conditions and forecast summary. Includes:
 - Current conditions (temperature, humidity, wind, etc.)
 - Short-term forecast (tonight, tomorrow)
-- Weather alerts if any are active
 
-**Note:** Weather alerts are automatically included when available.
+**Default location behavior:** If no location is provided and no companion location is available, bot falls back to `default_weather_location` (default: `Nelson, New Zealand`).
 
 ---
 
@@ -163,6 +162,7 @@ gwx <location>
 globalweather <location>
 gwxa <location>
 ```
+If no location is provided, it uses companion location when available; otherwise it falls back to `default_weather_location`.
 
 **Examples:**
 ```
@@ -422,37 +422,26 @@ satpass hubble visual
 
 ## Emergency Commands
 
-### `alert <location> [all]`
+### `alert`
 
-Get active emergency incidents for a location.
+Get New Zealand MetService CAP alerts filtered for Nelson (default provider).
 
 **Usage:**
 ```
-alert <city|zipcode|street city|lat,lon|county> [all]
+alert
 ```
-
-**Parameters:**
-- `location` - City name, zipcode, street address with city, coordinates, or county name
-- `all` - Show all incidents (default: shows most relevant incidents)
 
 **Examples:**
 ```
-alert seattle
-alert 98101
-alert main street seattle
-alert 47.6,-122.3
-alert seattle all
-alert king county
+alert
 ```
 
-**Response:** Active emergency incidents including:
-- Incident type and description
-- Location
-- Agency
-- Time
-- Severity level
+**Response:**
+- Returns only alert descriptions containing `Nelson` from `https://alerts.metservice.com/cap/rss`
+- If no matches: `There are no alerts for the Nelson region at present out of x current alerts`
+- `x` is the total alerts fetched from the RSS feed (for troubleshooting)
 
-**Note:** Requires `Alert_Command` configuration in `config.ini` with agency IDs for your area.
+**Note:** `Alert_Command.provider = metservice` is the default. `pulsepoint` remains available for legacy US incident mode.
 
 ---
 
@@ -883,4 +872,3 @@ feed test https://example.com/feed.xml
 ---
 
 For more information about configuring the bot, see the main [README](https://github.com/agessaman/meshcore-bot/blob/main/README.md) file.
-

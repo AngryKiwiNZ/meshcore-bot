@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Weather command for the MeshCore Bot
-Provides weather information using zip codes and NOAA APIs
+Uses Open-Meteo via wx_international delegation
 """
 
 import re
@@ -44,15 +44,15 @@ class WxCommand(BaseCommand):
     description = "Get weather information for a zip code (usage: wx 12345)"
     category = "weather"
     cooldown_seconds = 5  # 5 second cooldown per user to prevent API abuse
-    requires_internet = True  # Requires internet access for NOAA API and geocoding
+    requires_internet = True  # Requires internet access for Open-Meteo API and geocoding
     
     # Documentation
-    short_description = "Get weather for a US location using NOAA weather data"
-    usage = "wx <zipcode|city> [tomorrow|7d|hourly|alerts]"
-    examples = ["wx 98101", "wx seattle", "wx 90210 7d"]
+    short_description = "Get weather for any location using Open-Meteo"
+    usage = "wx <location> [tomorrow|7d]"
+    examples = ["wx Auckland", "wx Wellington tomorrow", "wx Christchurch 7d"]
     parameters = [
-        {"name": "location", "description": "US zip code or city name"},
-        {"name": "option", "description": "tomorrow, 7d, hourly, or alerts (optional)"}
+        {"name": "location", "description": "City or location name"},
+        {"name": "option", "description": "tomorrow or 7d (optional)"}
     ]
     
     # Error constants
@@ -70,17 +70,21 @@ class WxCommand(BaseCommand):
         else:
             self.wxsim_parser = None
         
-        # Check weather provider setting - delegate to international command if using Open-Meteo
-        weather_provider = bot.config.get('Weather', 'weather_provider', fallback='noaa').lower()
-        if weather_provider == 'openmeteo' and WX_INTERNATIONAL_AVAILABLE:
-            # Delegate to international weather command
+        # NOAA module is intentionally disabled; wx delegates to Open-Meteo implementation.
+        weather_provider = bot.config.get('Weather', 'weather_provider', fallback='openmeteo').lower()
+        if weather_provider != 'openmeteo':
+            self.logger.info(
+                f"Weather provider '{weather_provider}' is not supported; forcing Open-Meteo provider"
+            )
+        if WX_INTERNATIONAL_AVAILABLE:
             self.delegate_command = GlobalWxCommand(bot)
-            # Update keywords to match wx command for compatibility
             self.delegate_command.keywords = ['wx', 'weather', 'wxa', 'wxalert']
-            self.delegate_command.description = "Get weather information for any location (usage: wx Tokyo)"
-            self.logger.info("Weather provider set to 'openmeteo', delegating wx command to wx_international")
+            self.delegate_command.description = "Get weather information for any location (usage: wx Auckland)"
+            self.logger.info("NOAA weather module disabled; delegating wx command to wx_international (Open-Meteo)")
         else:
             self.delegate_command = None
+            self.wx_enabled = False
+            self.logger.error("wx_international is unavailable; wx command disabled because NOAA module is disabled")
         
         # Only initialize NOAA-specific attributes if not delegating
         if self.delegate_command is None:

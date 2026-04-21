@@ -1,6 +1,6 @@
 # Weather Service
 
-Provides scheduled weather forecasts, weather alerts, and lightning detection.
+Provides scheduled weather forecasts and lightning detection.
 
 ---
 
@@ -12,9 +12,10 @@ Provides scheduled weather forecasts, weather alerts, and lightning detection.
 [Weather_Service]
 enabled = true
 
-# Your location (required)
+# Your location (choose one option)
 my_position_lat = 47.6062
 my_position_lon = -122.3321
+# weather_location = Seattle, WA
 
 # Daily forecast time
 weather_alarm = 6:00              # Or "sunrise" / "sunset"
@@ -35,18 +36,16 @@ alerts_channel = #weather
 ```ini
 [Weather_Service]
 enabled = true
-my_position_lat = 47.6062         # Your latitude (required)
-my_position_lon = -122.3321       # Your longitude (required)
+my_position_lat = 47.6062         # Option A: latitude
+my_position_lon = -122.3321       # Option A: longitude
+# weather_location = Seattle, WA  # Option B: place name (Open-Meteo geocoding)
 weather_alarm = 6:00              # Time for daily forecast (HH:MM or sunrise/sunset)
 weather_channel = #weather        # Channel for forecasts
-alerts_channel = #weather         # Channel for weather alerts
+alerts_channel = #weather         # Reserved (NOAA alerts disabled in Open-Meteo-only mode)
 ```
 
-### Alert Polling
-
-```ini
-poll_weather_alerts_interval = 600000  # Check for alerts every 10 minutes (milliseconds)
-```
+`weather_location` is useful when you want to configure by city/place instead of coordinates.
+If both are set, `weather_location` is used to resolve coordinates on service startup.
 
 ### Lightning Detection (Optional)
 
@@ -86,27 +85,10 @@ Sends forecast to `weather_channel` at configured time:
 - Sunrise: `weather_alarm = sunrise`
 - Sunset: `weather_alarm = sunset`
 
-### Weather Alerts (US Only)
+### Weather Alerts
 
-Monitors NOAA weather alerts and posts new alerts to `alerts_channel`:
-
-**Example Output:**
-```
-🟡Wind Adv Seattle til 9PM by NWS SEA https://is.gd/abc123
-```
-
-**Alert Types:**
-- Warnings (tornado, severe thunderstorm, etc.)
-- Watches (winter storm, flood, etc.)
-- Advisories (wind, fog, etc.)
-- Statements (special weather)
-
-**Compact Format:**
-- Severity emoji (🔴🟠🟡⚪)
-- Event type and location
-- Expiration time
-- Issuing office
-- Shortened URL for details
+NOAA weather alerts are disabled in Open-Meteo-only mode.
+For non-US deployments (including New Zealand), this prevents unsupported NOAA lookups.
 
 ### Lightning Detection (Optional)
 
