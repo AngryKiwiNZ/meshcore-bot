@@ -537,19 +537,22 @@ default_country = US
 default_weather_location = Nelson, New Zealand
 
 # Temperature unit for weather display
-# Options: fahrenheit, celsius
-# Default: fahrenheit
-temperature_unit = fahrenheit
+# Options: celsius, fahrenheit
+# Default: celsius
+# Set to fahrenheit if you prefer imperial output
+temperature_unit = celsius
 
 # Wind speed unit for weather display
-# Options: mph, kmh, ms (meters per second)
-# Default: mph
-wind_speed_unit = mph
+# Options: kmh, mph, ms (meters per second)
+# Default: kmh
+# Set to mph for imperial-style wind speeds
+wind_speed_unit = kmh
 
 # Precipitation unit for weather display
-# Options: inch, mm
-# Default: inch
-precipitation_unit = inch
+# Options: mm, inch
+# Default: mm
+# Set to inch for imperial-style precipitation output
+precipitation_unit = mm
 
 # Custom weather sources (extensible pattern, similar to Channels_List)
 # Format: custom.<provider>.<name> = <source_url>

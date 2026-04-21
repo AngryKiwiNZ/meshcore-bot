@@ -219,6 +219,8 @@ wind_speed_unit = kmh
 precipitation_unit = mm
 ```
 
+These are now the default weather units for new installs. International users who prefer imperial output can switch them to `fahrenheit`, `mph`, and `inch` in `[Weather]`.
+
 ### Check-in Command
 
 ```ini

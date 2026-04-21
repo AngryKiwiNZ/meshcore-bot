@@ -323,8 +323,8 @@ class WxCommand(BaseCommand):
             # Optionally, we could return an error message here instead
         
         # Get unit preferences from config
-        temp_unit = self.bot.config.get('Weather', 'temperature_unit', fallback='fahrenheit').lower()
-        wind_unit = self.bot.config.get('Weather', 'wind_speed_unit', fallback='mph').lower()
+        temp_unit = self.bot.config.get('Weather', 'temperature_unit', fallback='celsius').lower()
+        wind_unit = self.bot.config.get('Weather', 'wind_speed_unit', fallback='kmh').lower()
         
         # Format based on forecast type
         if forecast_type == "tomorrow":

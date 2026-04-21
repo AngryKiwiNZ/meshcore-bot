@@ -89,9 +89,9 @@ class WeatherService(BaseServicePlugin):
             return
         
         # Get temperature/wind units from config (for Open-Meteo)
-        self.temperature_unit = self.bot.config.get('Weather', 'temperature_unit', fallback='fahrenheit')
-        self.wind_speed_unit = self.bot.config.get('Weather', 'wind_speed_unit', fallback='mph')
-        self.precipitation_unit = self.bot.config.get('Weather', 'precipitation_unit', fallback='inch')
+        self.temperature_unit = self.bot.config.get('Weather', 'temperature_unit', fallback='celsius')
+        self.wind_speed_unit = self.bot.config.get('Weather', 'wind_speed_unit', fallback='kmh')
+        self.precipitation_unit = self.bot.config.get('Weather', 'precipitation_unit', fallback='mm')
         
         # Track seen alerts to avoid duplicates
         self.seen_alert_ids: Set[str] = set()
