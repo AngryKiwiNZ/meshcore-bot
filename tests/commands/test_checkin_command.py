@@ -29,8 +29,8 @@ def checkin_bot(mock_logger, tmp_path):
     config.set("Checkin_Command", "enabled", "true")
     config.set("Checkin_Command", "default_status", "safe")
     config.set("Checkin_Command", "max_list_entries", "6")
-    config.set("Checkin_Command", "retention_days", "90")
-    config.set("Checkin_Command", "recent_window_days", "7")
+    config.set("Checkin_Command", "retention_hours", "72")
+    config.set("Checkin_Command", "recent_window_days", "3")
 
     bot = MagicMock()
     bot.logger = mock_logger
@@ -144,3 +144,51 @@ class TestCheckinCommand:
         assert "Jay last checked in" in response
         assert "need batteries" in response
 
+    @pytest.mark.asyncio
+    async def test_remove_deletes_users_checkins(self, checkin_bot):
+        cmd = CheckinCommand(checkin_bot)
+        now = int(time.time())
+        await cmd.execute(
+            mock_message(
+                content="checkin safe",
+                sender_id="Alice",
+                channel="emergency",
+                timestamp=now - 60,
+            )
+        )
+
+        checkin_bot.command_manager.send_response.reset_mock()
+        result = await cmd.execute(
+            mock_message(content="checkin remove", sender_id="Alice", is_dm=True, timestamp=now)
+        )
+
+        assert result is True
+        response = checkin_bot.command_manager.send_response.call_args[0][1]
+        assert "Removed 1 check-in entry for Alice." == response
+        rows = checkin_bot.db_manager.execute_query("SELECT * FROM checkins")
+        assert rows == []
+
+    @pytest.mark.asyncio
+    async def test_expired_entries_are_removed_after_72_hours(self, checkin_bot):
+        cmd = CheckinCommand(checkin_bot)
+        now = int(time.time())
+        old_timestamp = now - (73 * 3600)
+        await cmd.execute(
+            mock_message(
+                content="checkin old status",
+                sender_id="Alice",
+                channel="emergency",
+                timestamp=old_timestamp,
+            )
+        )
+
+        checkin_bot.command_manager.send_response.reset_mock()
+        result = await cmd.execute(
+            mock_message(content="checkin list", sender_id="NetControl", is_dm=True, timestamp=now)
+        )
+
+        assert result is True
+        response = checkin_bot.command_manager.send_response.call_args[0][1]
+        assert response == "No check-ins recorded in the last 3 day(s)."
+        rows = checkin_bot.db_manager.execute_query("SELECT * FROM checkins")
+        assert rows == []

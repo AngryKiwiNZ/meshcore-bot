@@ -685,11 +685,12 @@ default_status = safe
 # How many recent unique users to include in "checkin list"
 max_list_entries = 6
 
-# How many days of check-in history to keep
-retention_days = 90
+# How many hours of check-in history to keep
+# Default 72 = auto-remove entries after 3 days
+retention_hours = 72
 
 # How far back "checkin list" should look for recent activity
-recent_window_days = 7
+recent_window_days = 3
 
 [Data_Retention]
 # Data retention controls how long the bot keeps data in the database.

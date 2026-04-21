@@ -130,6 +130,7 @@ Record a status update, see who has checked in recently, or look up the latest c
 - `checkin <status>` - Record a custom status update
 - `checkin list` - Show the most recent unique check-ins
 - `checkin last <node>` - Look up the latest check-in for a user or node
+- `checkin remove` - Remove your saved check-ins
 - `rollcall` - Shortcut to list recent check-ins
 
 **Examples:**
@@ -139,10 +140,11 @@ checkin safe at home
 checkin need water but OK
 checkin list
 checkin last Jay
+checkin remove
 rollcall
 ```
 
-**Response:** Saves a timestamped check-in, shows recent roll-call activity, or reports the last known status for a node.
+**Response:** Saves a timestamped check-in, shows recent roll-call activity, reports the last known status for a node, or removes your check-in. Entries auto-expire after 72 hours.
 
 ---
 

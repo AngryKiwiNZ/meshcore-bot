@@ -8,7 +8,7 @@ and look up the latest known status for a node or callsign.
 
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from .base_command import BaseCommand
 from ..models import MeshMessage
@@ -27,19 +27,21 @@ class CheckinCommand(BaseCommand):
     category = "safety"
 
     short_description = "Record status and view recent roll-call check-ins"
-    usage = "checkin [status text|list|last <node>]"
+    usage = "checkin [status text|list|last <node>|remove]"
     examples = [
         "checkin",
         "checkin safe at home",
         "checkin need supplies",
         "checkin list",
         "checkin last Jay",
+        "checkin remove",
         "rollcall",
     ]
     parameters = [
         {"name": "status", "description": "Optional free-form status text to store with your check-in"},
         {"name": "list", "description": "Show the most recent unique check-ins"},
         {"name": "last <node>", "description": "Look up the latest check-in from a user or node"},
+        {"name": "remove", "description": "Remove your saved check-ins from the roll-call list"},
     ]
 
     MAX_RESPONSE_LENGTH = 220
@@ -58,11 +60,11 @@ class CheckinCommand(BaseCommand):
         self.max_list_entries = self.get_config_value(
             "Checkin_Command", "max_list_entries", fallback=6, value_type="int"
         )
-        self.retention_days = self.get_config_value(
-            "Checkin_Command", "retention_days", fallback=90, value_type="int"
+        self.retention_hours = self.get_config_value(
+            "Checkin_Command", "retention_hours", fallback=72, value_type="int"
         )
         self.recent_window_days = self.get_config_value(
-            "Checkin_Command", "recent_window_days", fallback=7, value_type="int"
+            "Checkin_Command", "recent_window_days", fallback=3, value_type="int"
         )
 
     def can_execute(self, message: MeshMessage) -> bool:
@@ -115,6 +117,7 @@ class CheckinCommand(BaseCommand):
 
     async def handle(self, message: MeshMessage) -> str:
         """Handle the requested check-in action."""
+        self._purge_expired_checkins(message.timestamp or int(time.time()))
         keyword, args = self._parse_message(message.content)
         args_lower = args.lower()
 
@@ -129,6 +132,9 @@ class CheckinCommand(BaseCommand):
             if not query:
                 return "Usage: checkin last <node>"
             return self._handle_lookup(query)
+
+        if args_lower == "remove":
+            return self._handle_remove(message)
 
         status_text = args.strip() or self.default_status
         return self._handle_checkin(message, status_text)
@@ -172,7 +178,6 @@ class CheckinCommand(BaseCommand):
                         1 if message.is_dm else 0,
                     ),
                 )
-                self._cleanup_old_checkins(cursor, now_ts)
                 conn.commit()
 
             timestamp_label = self._format_local_timestamp(now_ts)
@@ -251,6 +256,22 @@ class CheckinCommand(BaseCommand):
         response = f"{row['display_name']} last checked in {when} {where}: {status}"
         return truncate_string(response, self.MAX_RESPONSE_LENGTH)
 
+    def _handle_remove(self, message: MeshMessage) -> str:
+        """Remove saved check-ins for the requesting user."""
+        display_name = self._get_display_name(message)
+        try:
+            with self.bot.db_manager.connection() as conn:
+                cursor = conn.cursor()
+                deleted = self._delete_for_sender(cursor, message)
+                conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error removing check-in for {display_name}: {e}")
+            return "Unable to remove your check-in right now."
+
+        if deleted <= 0:
+            return f"No saved check-in found for {display_name}."
+        return f"Removed {deleted} check-in entr{'y' if deleted == 1 else 'ies'} for {display_name}."
+
     def _fetch_lookup_row(self, cursor: Any, query: str, exact: bool) -> Optional[Dict[str, Any]]:
         """Fetch the latest check-in row for a search query."""
         normalized = query.lower()
@@ -282,12 +303,35 @@ class CheckinCommand(BaseCommand):
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def _cleanup_old_checkins(self, cursor: Any, now_ts: int) -> None:
+    def _purge_expired_checkins(self, now_ts: int) -> None:
         """Delete old check-ins outside the retention window."""
-        if self.retention_days <= 0:
+        if self.retention_hours <= 0:
             return
-        cutoff = now_ts - (self.retention_days * 86400)
-        cursor.execute("DELETE FROM checkins WHERE checkin_time < ?", (cutoff,))
+        cutoff = now_ts - (self.retention_hours * 3600)
+        try:
+            with self.bot.db_manager.connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM checkins WHERE checkin_time < ?", (cutoff,))
+                conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error purging expired check-ins: {e}")
+
+    def _delete_for_sender(self, cursor: Any, message: MeshMessage) -> int:
+        """Delete all check-ins belonging to the requesting sender."""
+        sender_pubkey = (message.sender_pubkey or "").strip()
+        sender_id = (message.sender_id or "").strip()
+        display_name = self._get_display_name(message)
+
+        if sender_pubkey:
+            cursor.execute("DELETE FROM checkins WHERE sender_pubkey = ?", (sender_pubkey,))
+            return cursor.rowcount
+
+        if sender_id:
+            cursor.execute("DELETE FROM checkins WHERE sender_id = ?", (sender_id,))
+            return cursor.rowcount
+
+        cursor.execute("DELETE FROM checkins WHERE display_name = ?", (display_name,))
+        return cursor.rowcount
 
     def _get_display_name(self, message: MeshMessage) -> str:
         """Choose the best available display name for the sender."""
@@ -316,6 +360,6 @@ class CheckinCommand(BaseCommand):
         """Return a compact help summary."""
         return (
             "Use 'checkin' to mark yourself safe, 'checkin <status>' to add a note, "
-            "'checkin list' for recent roll-call, or 'checkin last <node>' to look someone up."
+            "'checkin list' for recent roll-call, 'checkin last <node>' to look someone up, "
+            "or 'checkin remove' to clear your entry."
         )
-
