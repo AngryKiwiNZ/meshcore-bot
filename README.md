@@ -1,6 +1,6 @@
 # MeshCore Bot
 
-A Python bot that connects to MeshCore mesh networks via serial port, BLE, or TCP/IP. The bot responds to messages containing configured keywords, executes commands, and provides various data services including weather, solar conditions, and satellite pass information.
+A Python bot that connects to MeshCore mesh networks via serial port, BLE, or TCP/IP. The bot responds to messages containing configured keywords, executes commands, and provides various data services including weather, solar conditions, and satellite pass information. This was originally forked from https://github.com/agessaman/meshcore-bot and takes features from https://github.com/SpudGunMan/meshing-around and ones which I've come up with on my own to suit my needs.
 
 ## Features
 
@@ -120,29 +120,6 @@ For containerized deployment using Docker:
    ```
 
 See [Docker deployment](docs/docker.md) for detailed Docker deployment instructions, including serial port access, web viewer configuration, and troubleshooting.
-
-## NixOS
-Use the Nix flake via flake.nix
-```nix
-meshcore-bot.url = "github:agessaman/meshcore-bot/";
-```
-
-And in your system config
-
-```nix
-{
-  imports = [inputs.meshcore-bot.nixosModules.default];
-  services.meshcore-bot = {
-    enable = true;
-    webviewer.enable = true;
-    settings = {
-      Connection.connection_type = "serial";
-      Connection.serial_port = "/dev/ttyUSB0";
-      Bot.bot_name = "MyBot";
-    };
-  };
-}
-```
 
 ## Configuration
 
@@ -359,41 +336,6 @@ The bot uses a modular plugin architecture:
 - **Plugin loaders**: Dynamic discovery and loading of command and service plugins
 - **Message handler**: Processes incoming messages and routes to appropriate handlers
 
-### Adding New Plugins
-
-**Command Plugin:**
-1. Create a new file in `modules/commands/`
-2. Inherit from `BaseCommand`
-3. Implement the `execute()` method
-4. The plugin loader will automatically discover and load it
-
-```python
-from .base_command import BaseCommand
-from ..models import MeshMessage
-
-class MyCommand(BaseCommand):
-    name = "mycommand"
-    keywords = ['mycommand']
-    description = "My custom command"
-
-    async def execute(self, message: MeshMessage) -> bool:
-        await self.send_response(message, "Hello from my command!")
-        return True
-```
-
-**Service Plugin:**
-1. Create a new file in `modules/service_plugins/`
-2. Inherit from `BaseServicePlugin`
-3. Implement `start()` and `stop()` methods
-4. Add configuration section to `config.ini.example`
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request against the dev branch
-
 ## License
 
 This project is licensed under the MIT License.
@@ -401,6 +343,6 @@ This project is licensed under the MIT License.
 ## Acknowledgments
 
 - [MeshCore Project](https://github.com/meshcore-dev/MeshCore) for the mesh networking protocol
-- Some commands adapted from MeshingAround bot by K7MHI Kelly Keeton 2024
+- Some commands adapted from MeshingAround bot by K7MHI Kelly Keeton 2024 (as acknowledged at the start)
 - Packet capture service based on [meshcore-packet-capture](https://github.com/agessaman/meshcore-packet-capture) by agessaman
 - [meshcore-decoder](https://github.com/michaelhart/meshcore-decoder) by Michael Hart for client-side packet decoding and decryption in the web viewer
