@@ -123,7 +123,7 @@ channels #general
 
 ### `checkin` / `check-in` / `rollcall`
 
-Record a status update, see who has checked in recently, or look up the latest check-in for a node.
+Record a status update, see who has checked in recently, or look up the latest check-in for a node. Check-ins older than 72 hours are automatically removed.
 
 **Usage:**
 - `checkin` - Record a default status such as `safe`
@@ -149,7 +149,7 @@ rollcall
 2. Shows recent roll-call activity.
 3. Reports the last known status for a node.
 4. Removes your check-in.
-5. Auto-expires entries after 72 hours.
+5. Auto-removes entries older than 72 hours unless they are removed sooner with `checkin remove`.
 
 ---
 

@@ -222,7 +222,7 @@ class CheckinCommand(BaseCommand):
         if not rows:
             return f"No check-ins recorded in the last {self.recent_window_days} day(s)."
 
-        lines = ["Recent check-ins:"]
+        lines = ["Recent check-ins (max 72hrs):"]
         for index, row in enumerate(rows, start=1):
             entry = f"{index}. {row['display_name']} - {self._format_age(row['checkin_time'])}"
             if row["status_text"]:

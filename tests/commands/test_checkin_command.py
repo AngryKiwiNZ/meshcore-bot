@@ -111,7 +111,7 @@ class TestCheckinCommand:
 
         assert result is True
         response = checkin_bot.command_manager.send_response.call_args[0][1]
-        assert response.startswith("Recent check-ins:")
+        assert response.startswith("Recent check-ins (max 72hrs):")
         lines = response.splitlines()
         assert len(lines) >= 3
         assert lines[1].startswith("1. Bob - ")
