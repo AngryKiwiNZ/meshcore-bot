@@ -56,11 +56,11 @@ class PingCommand(BaseCommand):
         return self.translate('commands.ping.description')
     
     def get_response_format(self) -> Optional[str]:
-        """Get the response format from config.
-        
-        Returns:
-            Optional[str]: The format string for the response, or None if not configured.
-        """
+        """Force ping through command execution instead of plain keyword replies."""
+        return None
+
+    def _get_configured_response_text(self) -> Optional[str]:
+        """Get the optional ping response text from config for use inside execute()."""
         if self.bot.config.has_section('Keywords'):
             format_str = self.bot.config.get('Keywords', 'ping', fallback=None)
             return self._strip_quotes_from_config(format_str) if format_str else None
@@ -96,13 +96,8 @@ class PingCommand(BaseCommand):
         Returns:
             bool: True if the response was sent successfully, False otherwise.
         """
-        response_format = self.get_response_format()
-        if response_format:
-            response = self.format_response(message, response_format)
-            if not response.startswith("🏓"):
-                response = f"🏓 {response}"
-        else:
-            response = "🏓 Pong!"
+        response_text = self._get_configured_response_text() or "Pong!"
+        response = f"🏓 {response_text}"
 
         hops_label = self._get_hops_label(message)
         if hops_label:
