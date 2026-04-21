@@ -1082,11 +1082,11 @@ class GlobalWxCommand(BaseCommand):
             if len(daily.get('wind_speed_10m_max', [])) > 1:
                 wind_speed = int(daily['wind_speed_10m_max'][1])
                 if wind_speed >= 3:
-                    wind_info = f" {wind_speed}"
+                    wind_info = f" {wind_speed}{self._wind_speed_suffix()}"
                     if len(daily.get('wind_gusts_10m_max', [])) > 1:
                         wind_gusts = int(daily['wind_gusts_10m_max'][1])
                         if wind_gusts > wind_speed + 3:
-                            wind_info += f"G{wind_gusts}"
+                            wind_info += f" gust {wind_gusts}"
             
             # Get precipitation probability and amount
             precip_info = ""
