@@ -69,7 +69,6 @@ checkin
 checkin safe at home
 checkin need supplies but OK
 checkin list
-checkin last Jay
 rollcall
 ```
 
