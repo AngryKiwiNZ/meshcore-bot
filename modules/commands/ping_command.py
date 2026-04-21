@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""
-Ping command for the MeshCore Bot
-Handles the 'ping' keyword response
-"""
+"""Ping command for the MeshCore Bot."""
 
+import re
 from typing import Optional
 from .base_command import BaseCommand
 from ..models import MeshMessage
@@ -67,6 +65,27 @@ class PingCommand(BaseCommand):
             format_str = self.bot.config.get('Keywords', 'ping', fallback=None)
             return self._strip_quotes_from_config(format_str) if format_str else None
         return None
+
+    def _get_hops_label(self, message: MeshMessage) -> Optional[str]:
+        """Return a compact hop-count label when routing data is available."""
+        routing_info = getattr(message, "routing_info", None) or {}
+        path_length = routing_info.get("path_length")
+        if path_length is None:
+            path_length = getattr(message, "hops", None)
+
+        if path_length is None and getattr(message, "path", None):
+            path_match = re.search(r"\((\d+)\s+hops?\)", message.path, flags=re.IGNORECASE)
+            if path_match:
+                path_length = int(path_match.group(1))
+            elif "direct" in message.path.lower():
+                path_length = 0
+
+        if path_length is None:
+            return None
+        if int(path_length) <= 0:
+            return "Direct"
+        hop_count = int(path_length)
+        return f"{hop_count} hop" if hop_count == 1 else f"{hop_count} hops"
     
     async def execute(self, message: MeshMessage) -> bool:
         """Execute the ping command.
@@ -77,4 +96,16 @@ class PingCommand(BaseCommand):
         Returns:
             bool: True if the response was sent successfully, False otherwise.
         """
-        return await self.handle_keyword_match(message)
+        response_format = self.get_response_format()
+        if response_format:
+            response = self.format_response(message, response_format)
+            if not response.startswith("🏓"):
+                response = f"🏓 {response}"
+        else:
+            response = "🏓 Pong!"
+
+        hops_label = self._get_hops_label(message)
+        if hops_label:
+            response = f"{response} | {hops_label}"
+
+        return await self.send_response(message, response)
