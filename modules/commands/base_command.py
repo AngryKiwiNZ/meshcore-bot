@@ -536,6 +536,16 @@ class BaseCommand(ABC):
         """Get the max length for numbered multipart responses."""
         return min(self.get_max_message_length(message), self.NUMBERED_CHUNK_MAX_LENGTH)
 
+    def get_transport_text_length(self, text: str) -> int:
+        """Estimate on-air payload length using UTF-8 bytes.
+
+        Mesh transport limits are effectively stricter than Python character
+        counts when messages contain emojis or other multibyte characters.
+        """
+        if text is None:
+            return 0
+        return len(str(text).encode("utf-8"))
+
     def build_numbered_chunks(self, lines: List[str], max_chunk_length: int) -> List[str]:
         """Split lines into numbered chunks whose final sent text fits max_chunk_length."""
         if not lines:
@@ -579,7 +589,7 @@ class BaseCommand(ABC):
                 for line in expanded_lines:
                     candidate_lines = current_lines + [line]
                     candidate = prefix + "\n".join(candidate_lines)
-                    if current_lines and len(candidate) > max_chunk_length:
+                    if current_lines and self.get_transport_text_length(candidate) > max_chunk_length:
                         finalized_prefix = f"{len(chunks) + 1}/{total_chunks} " if total_chunks > 1 else ""
                         chunks.append(finalized_prefix + "\n".join(current_lines))
                         current_lines = [line]

@@ -1131,19 +1131,16 @@ class GlobalWxCommand(BaseCommand):
             return self.translate('commands.gwx.multiday_error', num_days=num_days)
     
     def _count_display_width(self, text: str) -> int:
-        """Count display width of text, accounting for emojis which may take 2 display units.
+        """Estimate safe transport width for weather text.
         
         Args:
             text: Text to measure.
             
         Returns:
-            int: Estimated display width.
+            int: Conservative length estimate for message fitting.
         """
         import re
-        # Count regular characters
         width = len(text)
-        # Emojis typically take 2 display units in terminals/clients
-        # Count emoji characters (basic emoji pattern)
         emoji_pattern = re.compile(
             "["
             "\U0001F600-\U0001F64F"  # emoticons
@@ -1156,10 +1153,8 @@ class GlobalWxCommand(BaseCommand):
             flags=re.UNICODE
         )
         emoji_matches = emoji_pattern.findall(text)
-        # Each emoji sequence adds 1 extra width unit (since len() already counts it as 1)
-        # So we add 1 for each emoji sequence to account for display width
         width += len(emoji_matches)
-        return width
+        return max(width, self.get_transport_text_length(text))
     
     async def _send_multiday_forecast(self, message: MeshMessage, forecast_text: str) -> None:
         """Send multi-day forecast response, splitting into multiple messages if needed.

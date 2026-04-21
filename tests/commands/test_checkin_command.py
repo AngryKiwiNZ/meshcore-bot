@@ -167,6 +167,21 @@ class TestCheckinCommand:
         assert chunks[-1].startswith(f"{len(chunks)}/{len(chunks)} ")
         assert all(len(chunk) <= 125 for chunk in chunks)
 
+    def test_build_numbered_chunks_respects_utf8_payload_size(self, checkin_bot):
+        cmd = CheckinCommand(checkin_bot)
+
+        chunks = cmd.build_numbered_chunks(
+            [
+                "Nelson, NZ: " + " ".join(["☀️Sunny"] * 20),
+            ],
+            125,
+        )
+
+        assert len(chunks) >= 2
+        assert chunks[0].startswith(f"1/{len(chunks)} ")
+        assert chunks[-1].startswith(f"{len(chunks)}/{len(chunks)} ")
+        assert all(cmd.get_transport_text_length(chunk) <= 125 for chunk in chunks)
+
     @pytest.mark.asyncio
     async def test_lookup_returns_latest_status(self, checkin_bot):
         cmd = CheckinCommand(checkin_bot)
