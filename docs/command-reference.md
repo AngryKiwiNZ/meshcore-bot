@@ -144,7 +144,12 @@ checkin remove
 rollcall
 ```
 
-**Response:** Saves a timestamped check-in, shows recent roll-call activity, reports the last known status for a node, or removes your check-in. Entries auto-expire after 72 hours.
+**Response:**
+1. Saves a timestamped check-in.
+2. Shows recent roll-call activity.
+3. Reports the last known status for a node.
+4. Removes your check-in.
+5. Auto-expires entries after 72 hours.
 
 ---
 
