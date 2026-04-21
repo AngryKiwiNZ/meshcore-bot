@@ -1,326 +1,323 @@
 # MeshCore Bot
 
-A Python bot that connects to MeshCore mesh networks via serial port, BLE, or TCP/IP. The bot responds to messages containing configured keywords, executes commands, and provides various data services including weather, solar conditions, and satellite pass information. This was originally forked from https://github.com/agessaman/meshcore-bot and takes features from https://github.com/SpudGunMan/meshing-around and ones which I've come up with on my own to suit my needs.
+A Python bot for MeshCore networks that connects over serial, BLE, or TCP/IP and responds to mesh messages with useful commands, safety check-ins, weather, alerts, and background services.
 
-## Features
+This project builds on earlier work from:
+- https://github.com/agessaman/meshcore-bot
+- https://github.com/SpudGunMan/meshing-around
 
-- **Connection Methods**: Serial port, BLE (Bluetooth Low Energy), or TCP/IP
-- **Keyword Responses**: Configurable keyword-response pairs with template variables
-- **Command System**: Plugin-based command architecture with built-in commands
-- **Rate Limiting**: Global, per-user (by pubkey or name), and bot transmission rate limits to prevent spam
-- **User Management**: Ban/unban users with persistent storage
-- **Scheduled Messages**: Send messages at configured times
-- **Direct Message Support**: Respond to private messages
-- **Logging**: Console and file logging with configurable levels
+## Highlights
 
-### Service Plugins
+- Connect over `serial`, `ble`, or `tcp`
+- Plugin-based command system with built-in commands for weather, safety, routing, solar, sports, feeds, and more
+- `checkin` / `rollcall` command for net roll calls, emergency welfare checks, and recent status lookups
+- `wx` / `gwx` weather commands using Open-Meteo, with support for default locations, companion location fallback, and forecast options like `tomorrow` and `7d`
+- `alert` command with New Zealand MetService CAP RSS support enabled by default
+- Background services for scheduled weather, Discord bridging, packet capture, map uploads, earthquakes, and more
+- Rate limiting, DM support, monitored channels, logging, and persistent SQLite storage
 
-- **Discord Bridge**: One-way webhook bridge to post mesh messages to Discord ([docs](docs/discord-bridge.md))
-- **Packet Capture**: Capture and publish packets to MQTT brokers ([docs](docs/packet-capture.md))
-- **Map Uploader**: Upload node adverts to map.meshcore.dev ([docs](docs/map-uploader.md))
-- **Weather Service**: Scheduled forecasts, alerts, and lightning detection ([docs](docs/weather-service.md))
+## Quick Start
 
-## Requirements
+### Requirements
 
 - Python 3.7+
-- MeshCore-compatible device (Heltec V3, RAK Wireless, etc.)
-- USB cable or BLE capability
+- A MeshCore-compatible device
+- One of:
+  - USB serial access
+  - BLE capability
+  - TCP/IP access to a MeshCore node
 
-## Installation
+### Install
 
-### Quick Start (Development)
-1. Clone the repository:
 ```bash
 git clone <repository-url>
 cd meshcore-bot
-```
-
-2. Install dependencies:
-```bash
 pip install -r requirements.txt
-```
-
-3. Copy and configure the bot:
-
-**Full Configuration Option**: This config.ini example enables all bot commands and provides full configuration options.
-```bash
 cp config.ini.example config.ini
-# Edit config.ini with your settings
 ```
 
-**Minimal Configuration Option**: For users who only want core testing commands (ping, test, path, prefix, multitest), you can use the minimal configuration instead:
-```bash
-cp config.ini.minimal-example config.ini
-# Edit config.ini with your connection and bot settings
-```
+Edit `config.ini`, then run:
 
-4. Run the bot:
 ```bash
 python3 meshcore_bot.py
 ```
 
-### Production Installation (Systemd Service)
-For production deployment as a system service:
+If you want a smaller starter config for testing core commands only:
 
-1. Install as systemd service:
 ```bash
-sudo ./install-service.sh
+cp config.ini.minimal-example config.ini
 ```
 
-2. Configure the bot:
-```bash
-sudo nano /opt/meshcore-bot/config.ini
+## What’s New
+
+### Check-ins and Roll Calls
+
+The bot now includes a safety-focused `checkin` command for status reporting and roll calls.
+
+Supported flows:
+- `checkin`
+- `checkin <status>`
+- `checkin list`
+- `checkin last <node>`
+- `checkin remove`
+- `rollcall`
+
+Examples:
+
+```text
+checkin
+checkin safe at home
+checkin need supplies but OK
+checkin list
+checkin last Jay
+rollcall
 ```
 
-3. Start the service:
-```bash
-sudo systemctl start meshcore-bot
+Behavior:
+- Saves a timestamped status for the sender
+- Shows recent unique check-ins
+- Looks up the last known check-in for a user or node
+- Automatically expires old check-ins after the configured retention window
+
+Related docs:
+- [Command reference](docs/command-reference.md)
+- [Check-in API](docs/checkin-api.md)
+- [Local plugins](docs/local-plugins.md)
+
+### Weather: `wx` and `gwx`
+
+`wx` now uses the Open-Meteo-backed international weather implementation, so it works well for New Zealand and other non-US locations.
+
+Common usage:
+
+```text
+wx Auckland
+wx Nelson tomorrow
+wx Christchurch 7d
+gwx Tokyo
+gwx Paris, France
+gwx 35.6762,139.6503
 ```
 
-4. Check status:
-```bash
-sudo systemctl status meshcore-bot
+Highlights:
+- Global location support via geocoding
+- `tomorrow` forecast option
+- `7d` multi-day forecast option
+- Default location fallback from `Weather.default_weather_location`
+- Companion location fallback when the sender has known coordinates
+- Shared unit settings for temperature, wind, and precipitation
+
+Aliases:
+- `wx`, `weather`, `wxa`, `wxalert`
+- `gwx`, `globalweather`, `gwxa`
+
+Related docs:
+- [Command reference](docs/command-reference.md)
+- [Weather service](docs/weather-service.md)
+- [Configuration guide](docs/configuration.md)
+
+### Alerts via MetService
+
+The `alert` command now defaults to the New Zealand MetService CAP RSS feed:
+
+```ini
+[Alert_Command]
+enabled = true
+provider = metservice
 ```
 
-See [Service installation](docs/service-installation.md) for detailed service installation instructions.
+Basic usage:
 
-### Docker Deployment
-For containerized deployment using Docker:
+```text
+alert
+```
 
-1. **Create data directories and configuration**:
-   ```bash
-   mkdir -p data/{config,databases,logs,backups}
-   cp config.ini.example data/config/config.ini
-   # Edit data/config/config.ini with your settings
-   ```
+Current behavior:
+- Pulls from `https://alerts.metservice.com/cap/rss`
+- Returns alerts mentioning `Nelson`
+- If nothing matches, responds with a message showing that there are currently no Nelson-region alerts and includes the total number of feed alerts for troubleshooting
 
-2. **Update paths in config.ini** to use `/data/` directories:
-   ```ini
-   [Bot]
-   db_path = /data/databases/meshcore_bot.db
-   
-   [Logging]
-   log_file = /data/logs/meshcore_bot.log
-   ```
+Note:
+- `metservice` is the current default
+- `pulsepoint` is still available for legacy US incident workflows
 
-3. **Build and start with Docker Compose**:
-   ```bash
-   docker compose build
-   docker compose up -d
-   ```
-   
-   Or build and start in one command:
-   ```bash
-   docker compose up -d --build
-   ```
+Related docs:
+- [Command reference](docs/command-reference.md)
+- [Example config](config.ini.example)
 
-4. **View logs**:
-   ```bash
-   docker-compose logs -f
-   ```
+## Core Features
 
-See [Docker deployment](docs/docker.md) for detailed Docker deployment instructions, including serial port access, web viewer configuration, and troubleshooting.
+### Commands
+
+Examples of available command groups:
+
+- Basic: `test`, `ping`, `help`, `hello`, `cmd`
+- Safety and emergency: `checkin`, `rollcall`, `alert`
+- Weather and environment: `wx`, `gwx`, `aqi`, `sun`, `moon`, `solar`, `solarforecast`, `hfcond`, `aurora`
+- Mesh and network tools: `path`, `prefix`, `stats`, `channels`, `multitest`, `webviewer`
+- Fun and utility: `dice`, `roll`, `magic8`, `joke`, `dadjoke`, `hacker`, `catfact`
+- Admin or operational tools: `repeater`, `advert`, `feed`, `announcements`, `reload`, `greeter`
+
+For the full command list with examples, see [docs/command-reference.md](docs/command-reference.md).
+
+### Service Plugins
+
+Built-in service plugins include:
+
+- Discord bridge: [docs/discord-bridge.md](docs/discord-bridge.md)
+- Packet capture: [docs/packet-capture.md](docs/packet-capture.md)
+- Map uploader: [docs/map-uploader.md](docs/map-uploader.md)
+- Weather service: [docs/weather-service.md](docs/weather-service.md)
+- Earthquake service: [docs/earthquake-service.md](docs/earthquake-service.md)
 
 ## Configuration
 
-The bot uses `config.ini` for all settings. Key configuration sections:
+The bot is configured through `config.ini`.
 
 ### Connection
+
 ```ini
 [Connection]
-connection_type = serial          # serial, ble, or tcp
-serial_port = /dev/ttyUSB0        # Serial port path (for serial)
-#hostname = 192.168.1.60         # TCP hostname/IP (for TCP)
-#tcp_port = 5000                  # TCP port (for TCP)
-#ble_device_name = MeshCore       # BLE device name (for BLE)
-timeout = 30                      # Connection timeout
+connection_type = serial
+serial_port = /dev/ttyUSB0
+# ble_device_name = MeshCore
+# hostname = 192.168.1.60
+# tcp_port = 5000
+timeout = 30
 ```
 
-### Bot Settings
+### Bot
+
 ```ini
 [Bot]
-bot_name = MeshCoreBot            # Bot identification name
-enabled = true                    # Enable/disable bot
-rate_limit_seconds = 2            # Global: min seconds between any bot reply
-bot_tx_rate_limit_seconds = 1.0   # Min seconds between bot transmissions
-per_user_rate_limit_seconds = 5   # Per-user: min seconds between replies to same user (pubkey or name)
+bot_name = MeshCoreBot
+enabled = true
+rate_limit_seconds = 10
+bot_tx_rate_limit_seconds = 1.0
+per_user_rate_limit_seconds = 5
 per_user_rate_limit_enabled = true
-startup_advert = flood            # Send advert on startup
-```
-
-### Keywords
-```ini
-[Keywords]
-# Format: keyword = response_template
-# Variables: {sender}, {connection_info}, {snr}, {timestamp}, {path}
-test = "Message received from {sender} | {connection_info}"
-help = "Bot Help: test, ping, help, hello, cmd, checkin, wx, aqi, sun, moon, solar, hfcond, satpass, dice, roll, joke, dadjoke, sports, channels, path, prefix, repeater, stats, alert"
+startup_advert = false
+db_path = meshcore_bot.db
 ```
 
 ### Channels
+
 ```ini
 [Channels]
-monitor_channels = general,test,emergency  # Channels to monitor
-respond_to_dms = true                      # Enable DM responses
-# Optional: limit channel responses to certain keywords (DM gets all triggers)
+monitor_channels = general,test,emergency
+respond_to_dms = true
 # channel_keywords = help,ping,test,hello
 ```
 
-### External Data APIs
+### Weather
+
 ```ini
-[External_Data]
-# API keys for external services
-n2yo_api_key =                    # Satellite pass data
-airnow_api_key =                  # Air quality data
+[Weather]
+default_weather_location = Nelson, New Zealand
+temperature_unit = celsius
+wind_speed_unit = kmh
+precipitation_unit = mm
+```
+
+### Check-in Command
+
+```ini
+[Checkin_Command]
+enabled = true
+default_status = safe
+max_list_entries = 6
+retention_hours = 72
+recent_window_days = 3
 ```
 
 ### Alert Command
+
 ```ini
 [Alert_Command]
-enabled = true                           # Enable/disable alert command
-max_incident_age_hours = 24             # Maximum age for incidents (hours)
-max_distance_km = 20.0                  # Maximum distance for proximity queries (km)
-agency.city.<city_name> = <agency_ids>   # City-specific agency IDs (e.g., agency.city.seattle = 17D20,17M15)
-agency.county.<county_name> = <agency_ids> # County-specific agency IDs (aggregates all city agencies)
+enabled = true
+provider = metservice
+max_incident_age_hours = 24
+max_distance_km = 20.0
 ```
 
-### Logging
-```ini
-[Logging]
-log_level = INFO                  # DEBUG, INFO, WARNING, ERROR, CRITICAL
-log_file = meshcore_bot.log       # Log file path
-colored_output = true             # Enable colored console output
-```
+For full configuration coverage, see:
+- [docs/configuration.md](docs/configuration.md)
+- [config.ini.example](config.ini.example)
 
 ## Usage
 
-### Running the Bot
+### Run the Bot
 
 ```bash
-python meshcore_bot.py
+python3 meshcore_bot.py
 ```
 
-### Available Commands
+### Production Service
 
-For a comprehensive list of all available commands with examples and detailed explanations, see [Command reference](docs/command-reference.md).
+Install as a system service:
 
-Quick reference:
-- **Basic:** `test`, `ping`, `help`, `hello`, `cmd`
-- **Information:** `wx`, `gwx`, `aqi`, `sun`, `moon`, `solar`, `solarforecast`, `hfcond`, `satpass`, `channels`
-- **Emergency:** `alert`
-- **Gaming:** `dice`, `roll`, `magic8`
-- **Entertainment:** `joke`, `dadjoke`, `hacker`, `catfact`
-- **Sports:** `sports`
-- **MeshCore Utility:** `path`, `prefix`, `stats`, `multitest`, `webviewer`
-- **Management (DM only):** `repeater`, `advert`, `feed`, `announcements`, `greeter`
-
-## Message Response Templates
-
-Keyword responses support these template variables:
-
-- `{sender}` - Sender's node ID
-- `{connection_info}` - Connection details (direct/routed)
-- `{snr}` - Signal-to-noise ratio
-- `{timestamp}` - Message timestamp
-- `{path}` - Message routing path
-
-### Adding Newlines
-
-To add newlines in keyword responses, use `\n` (single backslash + n):
-
-```ini
-[Keywords]
-test = "Line 1\nLine 2\nLine 3"
+```bash
+sudo ./install-service.sh
+sudo systemctl start meshcore-bot
+sudo systemctl status meshcore-bot
 ```
 
-This will output:
-```
-Line 1
-Line 2
-Line 3
+More detail: [docs/service-installation.md](docs/service-installation.md)
+
+### Docker
+
+```bash
+mkdir -p data/{config,databases,logs,backups}
+cp config.ini.example data/config/config.ini
+docker compose up -d --build
 ```
 
-To use a literal backslash + n, use `\\n` (double backslash + n).  
-Other escape sequences: `\t` (tab), `\r` (carriage return), `\\` (literal backslash)
-
-Example:
-```ini
-[Keywords]
-test = "Message received from {sender} | {connection_info}"
-ping = "Pong!"
-help = "Bot Help: test, ping, help, hello, cmd, checkin, wx, gwx, aqi, sun, moon, solar, solarforecast, hfcond, satpass, dice, roll, joke, dadjoke, sports, channels, path, prefix, repeater, stats, multitest, alert, webviewer"
-```
+More detail: [docs/docker.md](docs/docker.md)
 
 ## Hardware Setup
 
-### Serial Connection
+### Serial
 
-1. Flash MeshCore firmware to your device
-2. Connect via USB
-3. Configure serial port in `config.ini`:
-   ```ini
-   [Connection]
-   connection_type = serial
-   serial_port = /dev/ttyUSB0  # Linux
-   # serial_port = COM3        # Windows
-   # serial_port = /dev/tty.usbserial-*  # macOS
-   ```
+```ini
+[Connection]
+connection_type = serial
+serial_port = /dev/ttyUSB0
+```
 
-### BLE Connection
+### BLE
 
-1. Ensure your MeshCore device supports BLE
-2. Configure BLE in `config.ini`:
-   ```ini
-   [Connection]
-   connection_type = ble
-   ble_device_name = MeshCore
-   ```
+```ini
+[Connection]
+connection_type = ble
+ble_device_name = MeshCore
+```
 
-### TCP Connection
+### TCP
 
-1. Ensure your MeshCore device has TCP/IP connectivity (e.g., via gateway or bridge)
-2. Configure TCP in `config.ini`:
-   ```ini
-   [Connection]
-   connection_type = tcp
-   hostname = 192.168.1.60  # IP address or hostname
-   tcp_port = 5000          # TCP port (default: 5000)
-   ```
+```ini
+[Connection]
+connection_type = tcp
+hostname = 192.168.1.60
+tcp_port = 5000
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Serial Port Not Found**:
-   - Check device connection
-   - Verify port name in config
-   - List available ports: `python -c "import serial.tools.list_ports; print([p.device for p in serial.tools.list_ports.comports()])"`
+1. Serial port not found:
+   Check the device path and confirm the node is connected.
+2. BLE connection problems:
+   Verify the device is discoverable and the configured BLE name matches.
+3. TCP connection failures:
+   Confirm the host, port, and network path to the MeshCore node.
+4. No command responses:
+   Check `enabled`, monitored channels, DM settings, and rate limits.
+5. Weather or alert failures:
+   Confirm the bot has internet access and the relevant command is enabled.
 
-2. **BLE Connection Issues**:
-   - Ensure device is discoverable
-   - Check device name in config
-   - Verify BLE permissions
+### Debug Logging
 
-3. **TCP Connection Issues**:
-   - Verify hostname/IP address is correct
-   - Check that TCP port is open and accessible
-   - Ensure network connectivity to the device
-   - Verify the MeshCore device supports TCP connections
-   - Check firewall settings if connection fails
-
-4. **Message Parsing Errors**:
-   - Enable DEBUG logging for detailed information
-   - Check meshcore library documentation for protocol details
-
-5. **Rate Limiting**:
-   - **Global**: `rate_limit_seconds` — minimum time between any two bot replies
-   - **Per-user**: `per_user_rate_limit_seconds` and `per_user_rate_limit_enabled` — minimum time between replies to the same user (user identified by public key when available, else sender name; channel senders often matched by name)
-   - **Bot TX**: `bot_tx_rate_limit_seconds` — minimum time between bot transmissions on the mesh
-   - Check logs for rate limiting messages
-
-### Debug Mode
-
-Enable debug logging:
 ```ini
 [Logging]
 log_level = DEBUG
@@ -328,13 +325,13 @@ log_level = DEBUG
 
 ## Architecture
 
-The bot uses a modular plugin architecture:
+The project is organized around a plugin-style structure:
 
-- **Core modules** (`modules/`): Shared utilities and core functionality
-- **Command plugins** (`modules/commands/`): Individual command implementations
-- **Service plugins** (`modules/service_plugins/`): Background services (Discord bridge, packet capture, etc.)
-- **Plugin loaders**: Dynamic discovery and loading of command and service plugins
-- **Message handler**: Processes incoming messages and routes to appropriate handlers
+- `modules/`: shared logic, database access, scheduling, utilities, and message handling
+- `modules/commands/`: user-facing command plugins
+- `modules/service_plugins/`: background services
+- `docs/`: feature, configuration, and deployment documentation
+- `tests/`: unit, command, and integration tests
 
 ## License
 
@@ -342,7 +339,7 @@ This project is licensed under the MIT License.
 
 ## Acknowledgments
 
-- [MeshCore Project](https://github.com/meshcore-dev/MeshCore) for the mesh networking protocol
-- Some commands adapted from MeshingAround bot by K7MHI Kelly Keeton 2024 (as acknowledged at the start)
-- Packet capture service based on [meshcore-packet-capture](https://github.com/agessaman/meshcore-packet-capture) by agessaman
-- [meshcore-decoder](https://github.com/michaelhart/meshcore-decoder) by Michael Hart for client-side packet decoding and decryption in the web viewer
+- [MeshCore Project](https://github.com/meshcore-dev/MeshCore)
+- MeshingAround bot work by K7MHI Kelly Keeton
+- [meshcore-packet-capture](https://github.com/agessaman/meshcore-packet-capture)
+- [meshcore-decoder](https://github.com/michaelhart/meshcore-decoder)
