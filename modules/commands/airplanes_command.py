@@ -11,7 +11,7 @@ import requests
 from typing import Optional, List, Dict, Any, Tuple
 from .base_command import BaseCommand
 from ..models import MeshMessage
-from ..utils import calculate_distance
+from ..utils import calculate_distance, geocode_city_sync
 
 
 class AirplanesCommand(BaseCommand):
@@ -46,6 +46,11 @@ class AirplanesCommand(BaseCommand):
         self.default_radius = self.get_config_value('Airplanes_Command', 'default_radius', fallback=25, value_type='float')
         self.max_results = self.get_config_value('Airplanes_Command', 'max_results', fallback=10, value_type='int')
         self.url_timeout = self.get_config_value('Airplanes_Command', 'url_timeout', fallback=10, value_type='int')
+        self.default_location_name = (
+            self.get_config_value('Airplanes_Command', 'default_location', fallback='', value_type='str').strip()
+            or self.bot.config.get('Weather', 'default_weather_location', fallback='Nelson, New Zealand').strip()
+            or 'Nelson, New Zealand'
+        )
         
         # Ensure API URL ends with /
         if self.api_url and not self.api_url.endswith('/'):
@@ -160,6 +165,22 @@ class AirplanesCommand(BaseCommand):
             return None
         except Exception as e:
             self.logger.debug(f"Error getting bot location: {e}")
+            return None
+
+    def _get_default_location(self) -> Optional[Tuple[float, float]]:
+        """Resolve the configured default location for aircraft lookups."""
+        try:
+            lat, lon, _ = geocode_city_sync(
+                self.bot,
+                self.default_location_name,
+                include_address_info=False,
+                timeout=self.url_timeout,
+            )
+            if lat is None or lon is None:
+                return None
+            return (lat, lon)
+        except Exception as e:
+            self.logger.debug(f"Error geocoding default airplanes location '{self.default_location_name}': {e}")
             return None
     
     def _parse_coordinates(self, args: str) -> Optional[Tuple[float, float]]:
@@ -442,7 +463,7 @@ class AirplanesCommand(BaseCommand):
         operator = aircraft.get('ownOp', '').strip()
         
         # Distance and bearing (most important for overhead command - put first)
-        distance_nm = aircraft.get('_distance_nm', 0)
+        distance_km = aircraft.get('_distance_km', 0)
         bearing_cardinal = aircraft.get('_bearing_cardinal', 'N')
         
         # Altitude with comma formatting
@@ -450,13 +471,14 @@ class AirplanesCommand(BaseCommand):
         if isinstance(alt, str):
             alt_str = alt
         elif alt is not None:
-            alt_str = f"{int(alt):,}ft"  # Add comma separator for readability
+            alt_m = int(round(float(alt) * 0.3048))
+            alt_str = f"{alt_m:,}m"
         else:
             alt_str = "N/A"
         
         # Speed
         gs = aircraft.get('gs')
-        speed_str = f"{int(gs)}kt" if gs is not None else "N/A"
+        speed_str = f"{int(round(float(gs) * 1.852))}km/h" if gs is not None else "N/A"
         
         # Track
         track = aircraft.get('track')
@@ -468,7 +490,8 @@ class AirplanesCommand(BaseCommand):
         vs = baro_rate or geom_rate
         vs_str = ""
         if vs is not None:
-            vs_str = f"{'+' if vs > 0 else ''}{int(vs)}fpm"
+            vs_metric = int(round(float(vs) * 0.3048))
+            vs_str = f"{'+' if vs_metric > 0 else ''}{vs_metric}m/min"
         
         # Build user-friendly response: "Callsign (Type) Operator distance bearing: altitude @ speed, heading, vertical_rate"
         # Example: "QXE2307 (E75L) Horizon Air 7.5nm NW: 21,675ft @ 366kt, 354°, +1600fpm"
@@ -521,7 +544,7 @@ class AirplanesCommand(BaseCommand):
             response_parts.append(operator_display)
         
         # Distance and bearing (most important)
-        response_parts.append(f"{distance_nm:.1f}nm {bearing_cardinal}")
+        response_parts.append(f"{distance_km:.1f}km {bearing_cardinal}")
         
         # Main info with colon separator
         main_info = f"{alt_str} @ {speed_str}, {track_str}"
@@ -556,17 +579,17 @@ class AirplanesCommand(BaseCommand):
             if isinstance(alt, str):
                 alt_str = alt
             elif alt is not None:
-                alt_str = f"{int(alt)}ft"
+                alt_str = f"{int(round(float(alt) * 0.3048))}m"
             else:
                 alt_str = "N/A"
             
             gs = aircraft.get('gs')
-            speed_str = f"{int(gs)}kt" if gs is not None else "N/A"
+            speed_str = f"{int(round(float(gs) * 1.852))}km/h" if gs is not None else "N/A"
             
-            distance_nm = aircraft.get('_distance_nm', 0)
+            distance_km = aircraft.get('_distance_km', 0)
             bearing_cardinal = aircraft.get('_bearing_cardinal', 'N')
             
-            line = f"{callsign} {alt_str} {speed_str} {distance_nm:.1f}nm {bearing_cardinal}"
+            line = f"{callsign} {alt_str} {speed_str} {distance_km:.1f}km {bearing_cardinal}"
             lines.append(line)
         
         # Build response, truncating if necessary
@@ -697,7 +720,7 @@ class AirplanesCommand(BaseCommand):
                                 location_source = "specified"
                                 args = args[2:]
                 
-                # If no location specified, try companion then bot
+                # If no location specified, try companion then bot, then configured default location
                 if location is None:
                     location = self._get_companion_location(message)
                     if location:
@@ -706,6 +729,10 @@ class AirplanesCommand(BaseCommand):
                         location = self._get_bot_location()
                         if location:
                             location_source = "bot"
+                        else:
+                            location = self._get_default_location()
+                            if location:
+                                location_source = "default"
                 
                 if location is None:
                     error_msg = self.translate('commands.airplanes.no_location')
@@ -745,7 +772,7 @@ class AirplanesCommand(BaseCommand):
                 return True
             
             # Get max message length for this message type
-            max_length = self.get_max_message_length(message)
+            max_length = self.get_numbered_chunk_max_length(message)
             
             # Format response
             # For overhead command, always use single aircraft format
@@ -778,31 +805,18 @@ class AirplanesCommand(BaseCommand):
             max_length: Maximum message length.
         """
         lines = response.split('\n')
+        packed_messages = []
         current_message = ""
-        message_count = 0
-        
-        for i, line in enumerate(lines):
-            # Check if adding this line would exceed max_length
-            if len(current_message) + len(line) + 1 > max_length:  # +1 for newline
-                # Send current message and start new one
-                if current_message:
-                    # Per-user rate limit applies only to first message (trigger); skip for continuations
-                    await self.send_response(
-                        message, current_message.rstrip(),
-                        skip_user_rate_limit=(message_count > 0)
-                    )
-                    await asyncio.sleep(2.0)  # Delay between messages
-                    message_count += 1
-                
-                # Start new message
+
+        for line in lines:
+            test_message = current_message + f"\n{line}" if current_message else line
+            if current_message and len(test_message) > max_length:
+                packed_messages.append(current_message.rstrip())
                 current_message = line
             else:
-                # Add line to current message
-                if current_message:
-                    current_message += f"\n{line}"
-                else:
-                    current_message = line
-        
-        # Send the last message if there's content (continuation; skip per-user rate limit)
+                current_message = test_message
+
         if current_message:
-            await self.send_response(message, current_message, skip_user_rate_limit=True)
+            packed_messages.append(current_message.rstrip())
+
+        await self.send_numbered_chunks(message, packed_messages, last_response=response)

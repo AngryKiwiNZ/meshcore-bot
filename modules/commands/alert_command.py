@@ -831,19 +831,19 @@ class AlertCommand(BaseCommand):
         return final_message
     
     async def _send_all_response(self, message: MeshMessage, incidents: List[Dict]) -> None:
-        """Send up to 10 incidents in multiple messages, grouping efficiently.
+        """Send up to 10 incidents in multiple numbered messages, grouping efficiently.
         
         Args:
             message: The message to respond to.
             incidents: List of incidents to send.
         """
-        import asyncio
-        
         if not incidents:
             await self.send_response(message, "🚨 No active incidents")
             return
         
-        # Build messages efficiently, grouping incidents to fit within 130 chars
+        max_length = self.get_numbered_chunk_max_length(message)
+
+        # Build messages efficiently, grouping incidents to fit within the numbered chunk limit
         messages = []
         header = f"🚨 {len(incidents)} incident(s):"
         
@@ -860,7 +860,7 @@ class AlertCommand(BaseCommand):
             test_length = current_length + 1 + incident_length  # +1 for newline
             
             # Check if this incident fits in the current message
-            if test_length <= 130:
+            if test_length <= max_length:
                 # It fits, add it
                 current_lines.append(incident_text)
                 current_length = test_length
@@ -887,33 +887,16 @@ class AlertCommand(BaseCommand):
                 current_lines.append(self._format_incident_compact(incidents[0]))
             messages.append("\n".join(current_lines))
         
-        # Send all messages with delays between them
-        total_messages = len(messages)
-        for i, msg in enumerate(messages):
-            if total_messages > 1:
-                prefix = f"{i+1}/{total_messages} "
-                prefixed_msg = prefix + msg
-                # Ensure it doesn't exceed 130 chars
-                if len(prefixed_msg) > 130:
-                    available_space = 130 - len(prefix)
-                    prefixed_msg = prefix + msg[:available_space]
-                await self.send_response(message, prefixed_msg)
-            else:
-                await self.send_response(message, msg)
-            # Wait between messages (except after the last one)
-            if i < total_messages - 1:
-                await asyncio.sleep(2.0)
+        await self.send_numbered_chunks(message, messages, last_response="\n".join(messages))
     
-    async def _send_chunked_response(self, message: MeshMessage, full_response: str, max_chunk_length: int = 130) -> None:
-        """Send a long response in multiple chunks with prefixes.
+    async def _send_chunked_response(self, message: MeshMessage, full_response: str, max_chunk_length: int = 125) -> None:
+        """Send a long response in multiple numbered chunks.
         
         Args:
             message: The message to respond to.
             full_response: The full response text to split.
             max_chunk_length: Maximum length per chunk.
         """
-        import asyncio
-        
         if len(full_response) <= max_chunk_length:
             await self.send_response(message, full_response)
             return
@@ -941,22 +924,7 @@ class AlertCommand(BaseCommand):
         if current_chunk:
             chunks.append(current_chunk)
         
-        # Send chunks with prefixes
-        total_chunks = len(chunks)
-        for i, chunk in enumerate(chunks):
-            if total_chunks > 1:
-                prefix = f"{i+1}/{total_chunks} "
-                prefixed_chunk = prefix + chunk
-                # Ensure it doesn't exceed max_chunk_length
-                if len(prefixed_chunk) > max_chunk_length:
-                    available_space = max_chunk_length - len(prefix)
-                    prefixed_chunk = prefix + chunk[:available_space]
-                await self.send_response(message, prefixed_chunk)
-            else:
-                await self.send_response(message, chunk)
-            # Small delay between messages
-            if i < total_chunks - 1:
-                await asyncio.sleep(1.0)
+        await self.send_numbered_chunks(message, chunks, last_response=full_response)
     
     async def execute(self, message: MeshMessage) -> bool:
         """Execute the alert command.
@@ -1145,12 +1113,13 @@ class AlertCommand(BaseCommand):
                 await self._send_all_response(message, incidents)
             else:
                 # Format and send response (compact mode)
-                response = self._format_response(incidents, max_length=130)
-                if len(response) <= 130:
+                max_length = self.get_numbered_chunk_max_length(message)
+                response = self._format_response(incidents, max_length=max_length)
+                if len(response) <= max_length:
                     await self.send_response(message, response)
                 else:
                     # Split long response into multiple messages
-                    await self._send_chunked_response(message, response, max_chunk_length=130)
+                    await self._send_chunked_response(message, response, max_chunk_length=max_length)
             return True
             
         except Exception as e:
@@ -1193,12 +1162,14 @@ class AlertCommand(BaseCommand):
                 lines.append(f"• {description}")
             full_message = "\n".join(lines)
 
+            max_length = self.get_numbered_chunk_max_length(message)
+
             # Check if we need to split into multiple messages
-            if len(full_message) <= 130:
+            if len(full_message) <= max_length:
                 # Single message fits
                 await self.send_response(message, full_message)
             else:
-                # Split into multiple messages, each <= 130 characters
+                # Split into multiple numbered messages
                 messages = []
                 current_lines = []
                 current_length = 0
@@ -1210,7 +1181,7 @@ class AlertCommand(BaseCommand):
                 for line in lines[1:]:  # Skip header, process alerts
                     line_length = len(line) + 1  # +1 for newline
                     
-                    if current_length + line_length > 130:
+                    if current_length + line_length > max_length:
                         # Current message would be too long, finalize it
                         if current_lines:
                             messages.append("\n".join(current_lines))
@@ -1218,9 +1189,9 @@ class AlertCommand(BaseCommand):
                             current_length = len(header)
                         
                         # Check if this single line fits in a new message
-                        if len(header) + 1 + len(line) > 130:
+                        if len(header) + 1 + len(line) > max_length:
                             # Line is too long even with just header, truncate it
-                            available_space = 130 - len(header) - 1 - 3  # -3 for "..."
+                            available_space = max_length - len(header) - 1 - 3  # -3 for "..."
                             truncated_line = line[:available_space] + "..."
                             current_lines.append(truncated_line)
                             messages.append("\n".join(current_lines))
@@ -1239,21 +1210,7 @@ class AlertCommand(BaseCommand):
                 if current_lines:
                     messages.append("\n".join(current_lines))
                 
-                # Send messages with prefixes
-                total_messages = len(messages)
-                for i, msg in enumerate(messages):
-                    prefix = f"{i+1}/{total_messages} "
-                    prefixed_msg = prefix + msg
-                    # Ensure the prefixed message doesn't exceed 130 chars
-                    if len(prefixed_msg) > 130:
-                        # Truncate if necessary
-                        available_space = 130 - len(prefix)
-                        prefixed_msg = prefix + msg[:available_space]
-                    await self.send_response(message, prefixed_msg)
-                    # Small delay between messages
-                    if i < total_messages - 1:
-                        import asyncio
-                        await asyncio.sleep(1.0)
+                await self.send_numbered_chunks(message, messages, last_response=full_message)
 
             return True
         except Exception as e:

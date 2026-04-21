@@ -1676,49 +1676,15 @@ class PathCommand(BaseCommand):
         self.last_response = response
         
         # Get dynamic max message length based on message type and bot username
-        max_length = self.get_max_message_length(message)
+        max_length = self.get_numbered_chunk_max_length(message)
         
         if len(response) <= max_length:
             # Single message is fine
             await self.send_response(message, response)
         else:
-            # Split into multiple messages for over-the-air transmission
-            # But keep the full response in last_response for web viewer
-            lines = response.split('\n')
-            current_message = ""
-            message_count = 0
-            
-            for i, line in enumerate(lines):
-                # Check if adding this line would exceed max_length characters
-                if len(current_message) + len(line) + 1 > max_length:  # +1 for newline
-                    # Send current message and start new one
-                    if current_message:
-                        # Add ellipsis on new line to end of continued message (if not the last message)
-                        if i < len(lines):
-                            current_message += self.translate('commands.path.continuation_end')
-                        # Per-user rate limit applies only to first message (trigger); skip for continuations
-                        await self.send_response(
-                            message, current_message.rstrip(),
-                            skip_user_rate_limit=(message_count > 0)
-                        )
-                        await asyncio.sleep(3.0)  # Delay between messages (same as other commands)
-                        message_count += 1
-                    
-                    # Start new message with ellipsis on new line at beginning (if not first message)
-                    if message_count > 0:
-                        current_message = self.translate('commands.path.continuation_start', line=line)
-                    else:
-                        current_message = line
-                else:
-                    # Add line to current message
-                    if current_message:
-                        current_message += f"\n{line}"
-                    else:
-                        current_message = line
-            
-            # Send the last message if there's content (continuation; skip per-user rate limit)
-            if current_message:
-                await self.send_response(message, current_message, skip_user_rate_limit=True)
+            # Split into numbered multipart messages for over-the-air transmission
+            lines = [line for line in response.split('\n') if line]
+            await self.send_numbered_chunks(message, lines, last_response=response)
     
     async def _extract_path_from_recent_messages(self) -> str:
         """Extract path from the current message's path information (same as test command).

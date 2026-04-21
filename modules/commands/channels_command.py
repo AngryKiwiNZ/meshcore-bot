@@ -7,7 +7,6 @@ Lists common hashtag channels for the region with multi-message support
 from .base_command import BaseCommand
 from ..models import MeshMessage
 from typing import Optional
-import asyncio
 import re
 
 
@@ -170,9 +169,7 @@ class ChannelsCommand(BaseCommand):
             
             # Split into multiple messages if needed (130 character limit)
             messages = self._split_into_messages(channel_list, sub_command)
-            
-            # Send each message with a small delay between them
-            await self._send_multiple_messages(message, messages)
+            await self.send_numbered_chunks(message, messages)
             
             return True
             
@@ -241,9 +238,7 @@ class ChannelsCommand(BaseCommand):
             
             # Split into multiple messages if needed
             messages = self._split_into_messages(category_list, "Available categories")
-            
-            # Send each message with a small delay between them
-            await self._send_multiple_messages(message, messages)
+            await self.send_numbered_chunks(message, messages)
                 
         except Exception as e:
             self.logger.error(f"Error showing categories: {e}")
@@ -346,7 +341,7 @@ class ChannelsCommand(BaseCommand):
             await self.send_response(message, self.translate('commands.channels.error_retrieving_channel_info', error=str(e)))
     
     def _split_into_messages(self, channel_list: list, sub_command: str = None) -> list:
-        """Split channel list into multiple messages if they exceed 130 characters.
+        """Split channel list into content chunks that can later be numbered safely.
         
         Args:
             channel_list: List of channel string items.
@@ -356,6 +351,7 @@ class ChannelsCommand(BaseCommand):
             list: List of message strings ready for sending.
         """
         messages = []
+        max_length = self.NUMBERED_CHUNK_MAX_LENGTH
         
         # Set appropriate header based on sub-command
         current_message = self._get_header_for_subcommand(sub_command)
@@ -363,7 +359,7 @@ class ChannelsCommand(BaseCommand):
         
         for channel in channel_list:
             # Check if adding this channel would exceed the limit
-            if current_length + len(channel) + 2 > 130:  # +2 for ", " separator
+            if current_length + len(channel) + 2 > max_length:  # +2 for ", " separator
                 # Start a new message
                 expected_header = self._get_continuation_header_for_subcommand(sub_command)
                 
@@ -434,20 +430,6 @@ class ChannelsCommand(BaseCommand):
             return self.translate('commands.channels.headers.category_channels', category=sub_command.title())
         else:
             return self.translate('commands.channels.headers.common_channels_cont')
-    
-    async def _send_multiple_messages(self, message: MeshMessage, messages: list) -> None:
-        """Send multiple messages with delays between them.
-        
-        Args:
-            message: The original command message.
-            messages: List of message strings to send.
-        """
-        for i, msg_content in enumerate(messages):
-            if i > 0:
-                # Small delay between messages to prevent overwhelming the network
-                await asyncio.sleep(0.5)
-            # Per-user rate limit applies only to first message (trigger); skip for continuations
-            await self.send_response(message, msg_content, skip_user_rate_limit=(i > 0))
     
     def _parse_config_channels(self):
         """Parse all channels from config, returning a generator of (name, description) tuples.

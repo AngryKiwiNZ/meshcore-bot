@@ -8,7 +8,7 @@ and look up the latest known status for a node or callsign.
 
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from .base_command import BaseCommand
 from ..models import MeshMessage
@@ -45,7 +45,6 @@ class CheckinCommand(BaseCommand):
     ]
 
     MAX_RESPONSE_LENGTH = 220
-
     def __init__(self, bot: Any):
         super().__init__(bot)
         self._load_config()
@@ -113,9 +112,11 @@ class CheckinCommand(BaseCommand):
     async def execute(self, message: MeshMessage) -> bool:
         """Execute the check-in command."""
         response = await self.handle(message)
+        if isinstance(response, list):
+            return await self.send_numbered_chunks(message, response)
         return await self.send_response(message, response)
 
-    async def handle(self, message: MeshMessage) -> str:
+    async def handle(self, message: MeshMessage) -> Union[str, List[str]]:
         """Handle the requested check-in action."""
         self._purge_expired_checkins(message.timestamp or int(time.time()))
         keyword, args = self._parse_message(message.content)
@@ -125,7 +126,7 @@ class CheckinCommand(BaseCommand):
             return self._get_help_summary()
 
         if args_lower.startswith("list") or (keyword in {"rollcall", "roll-call"} and not args):
-            return self._handle_list()
+            return self._handle_list(message)
 
         if args_lower.startswith("last "):
             query = args[5:].strip()
@@ -187,7 +188,7 @@ class CheckinCommand(BaseCommand):
             self.logger.error(f"Error saving check-in: {e}")
             return "Unable to save your check-in right now."
 
-    def _handle_list(self) -> str:
+    def _handle_list(self, message: MeshMessage) -> Union[str, List[str]]:
         """Return recent unique check-ins."""
         now_ts = int(time.time())
         window_start = now_ts - max(self.recent_window_days, 1) * 86400
@@ -227,16 +228,14 @@ class CheckinCommand(BaseCommand):
             entry = f"{index}. {row['display_name']} - {self._format_age(row['checkin_time'])}"
             if row["status_text"]:
                 entry += f" - {truncate_string(row['status_text'], 28)}"
-
-            candidate = "\n".join(lines + [entry])
-            if len(candidate) > self.MAX_RESPONSE_LENGTH:
-                if len(lines) == 1:
-                    return truncate_string(candidate, self.MAX_RESPONSE_LENGTH)
-                lines.append("...")
-                break
             lines.append(entry)
 
-        return "\n".join(lines)
+        full_response = "\n".join(lines)
+        max_chunk_length = self.get_numbered_chunk_max_length(message)
+        if len(full_response) <= max_chunk_length:
+            return full_response
+
+        return lines
 
     def _handle_lookup(self, query: str) -> str:
         """Look up the latest check-in by name, sender ID, or pubkey."""

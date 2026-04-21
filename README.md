@@ -240,6 +240,20 @@ max_incident_age_hours = 24
 max_distance_km = 20.0
 ```
 
+### Airplanes Command
+
+```ini
+[Airplanes_Command]
+enabled = true
+api_url = http://api.airplanes.live/v2/
+default_location = Nelson, New Zealand
+default_radius = 25
+max_results = 10
+url_timeout = 10
+```
+
+If no explicit coordinates, companion location, or bot location are available, the `airplanes` command falls back to `default_location`, then `Weather.default_weather_location`, then `Nelson, New Zealand`. Aircraft responses are displayed in metric units.
+
 For full configuration coverage, see:
 - [docs/configuration.md](docs/configuration.md)
 - [config.ini.example](config.ini.example)

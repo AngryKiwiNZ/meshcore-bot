@@ -1404,98 +1404,15 @@ class PrefixCommand(BaseCommand):
         self.last_response = response
         
         # Get dynamic max message length based on message type and bot username
-        max_length = self.get_max_message_length(message)
+        max_length = self.get_numbered_chunk_max_length(message)
         
         if len(response) <= max_length:
             # Single message is fine
             await self.send_response(message, response)
             return
         else:
-            # Multi-message: per-user rate limit applies only to the first message (the trigger)
-            # Split into multiple messages for over-the-air transmission
-            # But keep the full response in last_response for web viewer
-            lines = response.split('\n')
-            
-            # Calculate continuation markers length for planning
-            continuation_end = self.translate('commands.path.continuation_end')
-            continuation_start_template = self.translate('commands.path.continuation_start', line='PLACEHOLDER')
-            # Estimate continuation overhead (account for variable line length in template)
-            continuation_overhead = len(continuation_end) + len(continuation_start_template) - len('PLACEHOLDER')
-            
-            # Estimate how many messages we'll need based on total content
-            total_content_length = sum(len(line) for line in lines) + (len(lines) - 1)  # +1 for each newline between lines
-            # Account for continuation markers in multi-message scenarios
-            estimated_messages = max(2, (total_content_length + continuation_overhead * 2) // max(max_length - continuation_overhead, 1) + 1)
-            target_lines_per_message = max(1, (len(lines) + estimated_messages - 1) // estimated_messages)  # Ceiling division
-            
-            current_message = ""
-            message_count = 0
-            lines_in_current = 0
-            
-            for i, line in enumerate(lines):
-                # Calculate if adding this line would exceed max_length
-                test_message = current_message
-                if test_message:
-                    test_message += f"\n{line}"
-                else:
-                    test_message = line
-                
-                # Determine if we should split
-                must_split = len(test_message) > max_length
-                
-                # Smart splitting: try to balance lines across messages
-                # Calculate remaining lines and messages for balancing
-                remaining_lines = len(lines) - i - 1  # Lines after current one
-                remaining_messages = estimated_messages - message_count - 1  # Messages after current one
-                
-                # For first message, be more aggressive about fitting lines (prioritize earlier messages)
-                # For subsequent messages, balance more evenly
-                if message_count == 0:
-                    # First message: try to fit more lines, only split if we must
-                    # Be very conservative about splitting the first message - only if we absolutely must
-                    # or if we're way over target and have plenty of room left
-                    first_message_target = max(target_lines_per_message, 3)  # At least 3 lines in first message if possible
-                    should_balance_split = (
-                        lines_in_current >= first_message_target and  # We've hit minimum target for first message
-                        remaining_lines > 0 and  # There are more lines
-                        remaining_messages > 0 and  # There are more messages
-                        len(test_message) > max_length * 0.95  # Very close to limit (95% threshold - be aggressive)
-                    )
-                else:
-                    # Subsequent messages: balance more evenly, but still try to fit reasonable amounts
-                    should_balance_split = (
-                        lines_in_current >= max(target_lines_per_message, 2) and  # At least 2 lines per message
-                        remaining_lines > 0 and  # There are more lines
-                        remaining_messages > 0 and  # There are more messages
-                        (remaining_lines >= remaining_messages or lines_in_current >= target_lines_per_message + 1) and  # Can distribute or we've exceeded target
-                        len(test_message) > max_length * 0.88  # Getting close to limit (88% threshold)
-                    )
-                
-                if (must_split or should_balance_split) and current_message:
-                    # Send current message and start new one
-                    # Add ellipsis on new line to end of continued message
-                    current_message += continuation_end
-                    # Per-user rate limit applies only to the first message (trigger); skip for continuations
-                    skip_user_limit = message_count > 0
-                    await self.send_response(message, current_message.rstrip(), skip_user_rate_limit=skip_user_limit)
-                    await asyncio.sleep(3.0)  # Delay between messages (same as other commands)
-                    message_count += 1
-                    lines_in_current = 0
-                    
-                    # Start new message with ellipsis on new line at beginning
-                    current_message = self.translate('commands.path.continuation_start', line=line)
-                    lines_in_current = 1
-                else:
-                    # Add line to current message
-                    if current_message:
-                        current_message += f"\n{line}"
-                    else:
-                        current_message = line
-                    lines_in_current += 1
-            
-            # Send the last message if there's content (continuation; skip per-user rate limit)
-            if current_message:
-                await self.send_response(message, current_message, skip_user_rate_limit=True)
+            lines = [line for line in response.split('\n') if line]
+            await self.send_numbered_chunks(message, lines, last_response=response)
     
     async def __aenter__(self):
         """Async context manager entry"""

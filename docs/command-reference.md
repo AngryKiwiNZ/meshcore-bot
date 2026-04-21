@@ -271,7 +271,7 @@ overhead <latitude>,<longitude>
 - Always returns one aircraft sorted by distance (closest first)
 
 **Location Options:**
-- No location: Uses companion location (if available), otherwise bot location
+- No location: Uses companion location, otherwise bot location, otherwise `Airplanes_Command.default_location`, then `Weather.default_weather_location`, then `Nelson, New Zealand`
 - `here`: Uses bot location from config
 - `<lat>,<lon>`: Uses specified coordinates (e.g., `47.6,-122.3`)
 
@@ -304,18 +304,20 @@ airplanes 47.6,-122.3 radius=25 closest
 ```
 
 **Response:**
-- **Single aircraft**: Detailed format with callsign, type, altitude, speed, track, distance, bearing, vertical rate, and registration
+- **Single aircraft**: Detailed format with callsign, type, altitude, speed, track, distance, bearing, and vertical rate
 - **Multiple aircraft**: Compact list format with callsign, altitude, speed, distance, and bearing
+- Returned values are displayed in metric units (`km`, `m`, `km/h`, `m/min`)
 
 **Configuration:**
 The command can be configured in `config.ini` under `[Airplanes_Command]`:
 - `enabled` - Enable/disable the command
 - `api_url` - API endpoint URL (default: `http://api.airplanes.live/v2/`)
+- `default_location` - Default named location when no coordinates/companion/bot location are available
 - `default_radius` - Default search radius in nautical miles
 - `max_results` - Maximum number of results to return
 - `url_timeout` - API request timeout in seconds
 
-**Note:** Uses companion location from database if available, otherwise falls back to bot location from config. The API is rate-limited to 1 request per second.
+**Note:** Uses companion location from database if available, otherwise falls back through bot location, configured defaults, and finally `Nelson, New Zealand`. The API is rate-limited to 1 request per second.
 
 ---
 

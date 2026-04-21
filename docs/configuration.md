@@ -48,7 +48,7 @@ Examples of sections that configure specific commands or features:
 - **`[Path_Command]`** – Path decoding and repeater selection. See [Path Command](path-command-config.md) for all options.
 - **`[Prefix_Command]`** – Prefix lookup, prefix best, range limits.
 - **`[Weather]`** – Used by the `wx` / `gwx` commands and the Weather Service plugin (see [Weather Service](weather-service.md)).
-- **`[Airplanes_Command]`** – Aircraft/ADS-B command (API URL, radius, limits).
+- **`[Airplanes_Command]`** – Aircraft/ADS-B command (API URL, radius, limits, default fallback location).
 - **`[Aurora_Command]`** – Aurora command (default coordinates).
 - **`[Alert_Command]`** – Emergency alerts (agency IDs, etc.).
 - **`[Sports_Command]`** – Sports scores (teams, leagues).

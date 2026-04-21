@@ -36,6 +36,7 @@ class BaseCommand(ABC):
     usage: str = ""  # Usage syntax, e.g., "wx <zipcode|city> [tomorrow|7d|hourly|alerts]"
     examples: List[str] = []  # Example commands, e.g., ["wx 98101", "wx seattle tomorrow"]
     parameters: List[Dict[str, str]] = []  # Parameter definitions, e.g., [{"name": "location", "description": "US zip code or city name"}]
+    NUMBERED_CHUNK_MAX_LENGTH: int = 125
     
     def __init__(self, bot):
         self.bot = bot
@@ -530,6 +531,55 @@ class BaseCommand(ABC):
         # Ensure we don't return a negative or unreasonably small value
         # Minimum of 130 characters to ensure some functionality
         return max(130, max_length)
+
+    def get_numbered_chunk_max_length(self, message: MeshMessage) -> int:
+        """Get the max length for numbered multipart responses."""
+        return min(self.get_max_message_length(message), self.NUMBERED_CHUNK_MAX_LENGTH)
+
+    def build_numbered_chunks(self, lines: List[str], max_chunk_length: int) -> List[str]:
+        """Split lines into numbered chunks whose final sent text fits max_chunk_length."""
+        if not lines:
+            return []
+
+        def pack_lines(total_chunks: int) -> List[str]:
+            chunks: List[str] = []
+            current_lines: List[str] = []
+
+            for line in lines:
+                prefix = f"{len(chunks) + 1}/{total_chunks} " if total_chunks > 1 else ""
+                candidate_lines = current_lines + [line]
+                candidate = prefix + "\n".join(candidate_lines)
+                if current_lines and len(candidate) > max_chunk_length:
+                    finalized_prefix = f"{len(chunks) + 1}/{total_chunks} " if total_chunks > 1 else ""
+                    chunks.append(finalized_prefix + "\n".join(current_lines))
+                    current_lines = [line]
+                else:
+                    current_lines = candidate_lines
+
+            if current_lines:
+                prefix = f"{len(chunks) + 1}/{total_chunks} " if total_chunks > 1 else ""
+                chunks.append(prefix + "\n".join(current_lines))
+            return chunks
+
+        total_chunks = 1
+        while True:
+            chunks = pack_lines(total_chunks)
+            if len(chunks) == total_chunks:
+                return chunks
+            total_chunks = len(chunks)
+
+    async def send_numbered_chunks(
+        self, message: MeshMessage, lines: List[str], *, last_response: Optional[str] = None
+    ) -> bool:
+        """Build numbered chunks from lines and send them through the shared chunked path."""
+        max_chunk_length = self.get_numbered_chunk_max_length(message)
+        chunks = self.build_numbered_chunks(lines, max_chunk_length)
+        if not chunks:
+            return True
+        if len(chunks) == 1:
+            return await self.send_response(message, chunks[0])
+        self.last_response = last_response or "\n".join(lines)
+        return await self.send_response_chunked(message, chunks)
     
     def check_cooldown(self, user_id: Optional[str] = None) -> Tuple[bool, float]:
         """Check if user is on cooldown.

@@ -1092,6 +1092,16 @@ enabled = true
 #   http://localhost:8080/data/ (local readsb instance)
 api_url = http://api.airplanes.live/v2/
 
+# Default location for airplanes lookups when no companion location, bot location,
+# or explicit coordinates are available.
+# Falls back to [Weather] default_weather_location when unset.
+# Final built-in fallback: Nelson, New Zealand
+# Examples:
+# default_location = Nelson, New Zealand
+# default_location = Christchurch, New Zealand
+# default_location = Seattle, WA
+# default_location =
+
 # Default search radius in nautical miles
 # Maximum: 250 nautical miles
 default_radius = 25

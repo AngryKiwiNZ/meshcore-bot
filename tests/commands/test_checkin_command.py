@@ -41,6 +41,7 @@ def checkin_bot(mock_logger, tmp_path):
     bot.command_manager = MagicMock()
     bot.command_manager.monitor_channels = ["general", "emergency"]
     bot.command_manager.send_response = AsyncMock(return_value=True)
+    bot.command_manager.send_response_chunked = AsyncMock(return_value=True)
     bot.db_manager = DBManager(bot, str(tmp_path / "checkin.db"))
     return bot
 
@@ -118,6 +119,37 @@ class TestCheckinCommand:
         assert "all good" in lines[1]
         assert lines[2].startswith("2. Alice - ")
         assert "safe at home" in lines[2]
+
+    @pytest.mark.asyncio
+    async def test_rollcall_chunks_long_lists_with_numbering(self, checkin_bot):
+        cmd = CheckinCommand(checkin_bot)
+        now = int(time.time())
+
+        for idx in range(1, 7):
+            await cmd.execute(
+                mock_message(
+                    content=f"checkin status entry number {idx} with extra text",
+                    sender_id=f"Operator{idx}",
+                    channel="emergency",
+                    timestamp=now - idx,
+                    is_dm=True,
+                )
+            )
+
+        checkin_bot.command_manager.send_response.reset_mock()
+        checkin_bot.command_manager.send_response_chunked.reset_mock()
+
+        result = await cmd.execute(mock_message(content="rollcall", sender_id="NetControl", is_dm=True))
+
+        assert result is True
+        checkin_bot.command_manager.send_response.assert_not_called()
+        checkin_bot.command_manager.send_response_chunked.assert_awaited_once()
+
+        chunks = checkin_bot.command_manager.send_response_chunked.await_args.args[1]
+        assert len(chunks) >= 2
+        assert chunks[0].startswith(f"1/{len(chunks)} ")
+        assert chunks[-1].startswith(f"{len(chunks)}/{len(chunks)} ")
+        assert all(len(chunk) <= 125 for chunk in chunks)
 
     @pytest.mark.asyncio
     async def test_lookup_returns_latest_status(self, checkin_bot):

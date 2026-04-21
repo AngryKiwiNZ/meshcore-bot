@@ -1146,10 +1146,8 @@ class GlobalWxCommand(BaseCommand):
             message: The original message (for reply context).
             forecast_text: The full forecast text (lines separated by \n).
         """
-        import asyncio
-        
         # Get max message length dynamically
-        max_length = self.get_max_message_length(message)
+        max_length = self.get_numbered_chunk_max_length(message)
         
         lines = forecast_text.split('\n')
         
@@ -1164,56 +1162,23 @@ class GlobalWxCommand(BaseCommand):
             await self.send_response(message, forecast_text)
             return
         
-        # Multi-line message - try to fit as many days as possible in one message
-        # Only split when necessary (message would exceed max_length chars)
+        packed_messages = []
         current_message = ""
-        message_count = 0
-        
-        for i, line in enumerate(lines):
+
+        for line in lines:
             if not line:
                 continue
-            
-            # Check if adding this line would exceed max_length characters (using display width)
-            if current_message:
-                test_message = current_message + "\n" + line
+            test_message = current_message + "\n" + line if current_message else line
+            if current_message and self._count_display_width(test_message) > max_length:
+                packed_messages.append(current_message)
+                current_message = line
             else:
-                test_message = line
-            
-            # Only split if message would exceed max_length chars (using display width)
-            if self._count_display_width(test_message) > max_length:
-                # Send current message and start new one
-                if current_message:
-                    # Per-user rate limit applies only to first message (trigger); skip for continuations
-                    await self.send_response(
-                        message, current_message,
-                        skip_user_rate_limit=(message_count > 0)
-                    )
-                    message_count += 1
-                    # Wait between messages (same as other commands)
-                    if i < len(lines):
-                        await asyncio.sleep(2.0)
-                    
-                    current_message = line
-                else:
-                    # Single line is too long, send it anyway (will be truncated by bot)
-                    await self.send_response(
-                        message, line,
-                        skip_user_rate_limit=(message_count > 0)
-                    )
-                    message_count += 1
-                    if i < len(lines) - 1:
-                        await asyncio.sleep(2.0)
-                    current_message = ""
-            else:
-                # Add line to current message (fits within max_length)
-                if current_message:
-                    current_message += "\n" + line
-                else:
-                    current_message = line
-        
-        # Send the last message if there's content (continuation; skip per-user rate limit)
+                current_message = test_message
+
         if current_message:
-            await self.send_response(message, current_message, skip_user_rate_limit=True)
+            packed_messages.append(current_message)
+
+        await self.send_numbered_chunks(message, packed_messages, last_response=forecast_text)
     
     def _degrees_to_direction(self, degrees: float) -> str:
         """Convert wind direction in degrees to compass direction with emoji.
