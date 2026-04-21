@@ -567,8 +567,8 @@ admin_commands = repeater
 test = "ack [@{sender}]{phrase_part} | {connection_info} | Received at: {timestamp}"
 ping = "Pong!"
 pong = "Ping!"
-help = "Bot Help: test, ping, help, hello, cmd, advert, t phrase, @string, wx, aqi, sun, moon, solar, hfcond, satpass | Use 'help <command>' for details"
-cmd = "Available commands: test, ping, help, hello, cmd, advert, t phrase, @string, wx, aqi, sun, moon, solar, hfcond, satpass"
+help = "Bot Help: test, ping, help, hello, cmd, checkin, advert, t phrase, @string, wx, aqi, sun, moon, solar, hfcond, satpass | Use 'help <command>' for details"
+cmd = "Available commands: test, ping, help, hello, cmd, checkin, advert, t phrase, @string, wx, aqi, sun, moon, solar, hfcond, satpass"
 
 [Channels]
 # Channels to monitor (comma-separated)

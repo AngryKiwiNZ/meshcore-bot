@@ -305,7 +305,7 @@ test = "ack @[{sender}]{phrase_part} | {connection_info} | Received at: {timesta
 ping = "Pong!"
 pong = "Ping!"
 # Override 'help' command output
-# help = "Bot Help: test (or t), ping, help, hello, cmd, advert, wx, aqi, sun, moon, solar, hfcond, satpass, prefix, path, sports, dice, roll, stats | More: 'help <command>'"
+# help = "Bot Help: test (or t), ping, help, hello, cmd, checkin, advert, wx, aqi, sun, moon, solar, hfcond, satpass, prefix, path, sports, dice, roll, stats | More: 'help <command>'"
 
 # Override 'cmd' command output
 # cmd = "Available commands: test (or t), ping, help, hello, cmd, advert, wx, aqi, sun, moon, solar, hfcond, satpass, prefix, path, sports, dice, roll, stats"
@@ -674,6 +674,22 @@ track_command_details = true
 # true: Replace user IDs with anonymous identifiers
 # false: Keep actual user IDs in stats
 anonymize_users = false
+
+[Checkin_Command]
+# Enable or disable the check-in / roll-call command
+enabled = true
+
+# Default status saved when a user sends just "checkin"
+default_status = safe
+
+# How many recent unique users to include in "checkin list"
+max_list_entries = 6
+
+# How many days of check-in history to keep
+retention_days = 90
+
+# How far back "checkin list" should look for recent activity
+recent_window_days = 7
 
 [Data_Retention]
 # Data retention controls how long the bot keeps data in the database.

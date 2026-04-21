@@ -121,6 +121,31 @@ channels #general
 
 ---
 
+### `checkin` / `check-in` / `rollcall`
+
+Record a status update, see who has checked in recently, or look up the latest check-in for a node.
+
+**Usage:**
+- `checkin` - Record a default status such as `safe`
+- `checkin <status>` - Record a custom status update
+- `checkin list` - Show the most recent unique check-ins
+- `checkin last <node>` - Look up the latest check-in for a user or node
+- `rollcall` - Shortcut to list recent check-ins
+
+**Examples:**
+```
+checkin
+checkin safe at home
+checkin need water but OK
+checkin list
+checkin last Jay
+rollcall
+```
+
+**Response:** Saves a timestamped check-in, shows recent roll-call activity, or reports the last known status for a node.
+
+---
+
 ### `wx <location>`
 
 Get global weather information using Open-Meteo API.

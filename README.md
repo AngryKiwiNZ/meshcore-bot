@@ -177,7 +177,7 @@ startup_advert = flood            # Send advert on startup
 # Format: keyword = response_template
 # Variables: {sender}, {connection_info}, {snr}, {timestamp}, {path}
 test = "Message received from {sender} | {connection_info}"
-help = "Bot Help: test, ping, help, hello, cmd, wx, aqi, sun, moon, solar, hfcond, satpass, dice, roll, joke, dadjoke, sports, channels, path, prefix, repeater, stats, alert"
+help = "Bot Help: test, ping, help, hello, cmd, checkin, wx, aqi, sun, moon, solar, hfcond, satpass, dice, roll, joke, dadjoke, sports, channels, path, prefix, repeater, stats, alert"
 ```
 
 ### Channels
@@ -271,7 +271,7 @@ Example:
 [Keywords]
 test = "Message received from {sender} | {connection_info}"
 ping = "Pong!"
-help = "Bot Help: test, ping, help, hello, cmd, wx, gwx, aqi, sun, moon, solar, solarforecast, hfcond, satpass, dice, roll, joke, dadjoke, sports, channels, path, prefix, repeater, stats, multitest, alert, webviewer"
+help = "Bot Help: test, ping, help, hello, cmd, checkin, wx, gwx, aqi, sun, moon, solar, solarforecast, hfcond, satpass, dice, roll, joke, dadjoke, sports, channels, path, prefix, repeater, stats, multitest, alert, webviewer"
 ```
 
 ## Hardware Setup
