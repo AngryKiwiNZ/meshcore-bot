@@ -211,22 +211,6 @@ class MeshCoreBot:
             self.logger.warning(f"Failed to initialize mesh graph: {e}")
             self.mesh_graph = None
         
-        # Initialize telemetry leaderboard for tracking network metrics
-        self.logger.info("Initializing telemetry leaderboard")
-        try:
-            from .telemetry_leaderboard import TelemetryLeaderboard
-            self.telemetry_leaderboard = TelemetryLeaderboard(
-                data_dir="data/telemetry",
-                logger=self.logger
-            )
-            self.logger.info("Telemetry leaderboard initialized successfully")
-            
-            # Register cleanup handler for telemetry leaderboard
-            atexit.register(self._cleanup_telemetry_leaderboard)
-        except (OSError, ValueError, AttributeError, ImportError) as e:
-            self.logger.warning(f"Failed to initialize telemetry leaderboard: {e}")
-            self.telemetry_leaderboard = None
-        
         # Initialize service plugin loader and load all services
         self.logger.info("Initializing service plugin loader")
         try:
@@ -1533,18 +1517,6 @@ long_jokes = false
         try:
             if hasattr(self, 'mesh_graph') and self.mesh_graph:
                 self.mesh_graph.shutdown()
-        except (OSError, AttributeError, TypeError, ValueError, IOError):
-            pass  # Do not log; stream may be closed during atexit
-    
-    def _cleanup_telemetry_leaderboard(self) -> None:
-        """Cleanup telemetry leaderboard resources on exit.
-
-        Called by atexit handler to ensure leaderboard state is saved
-        properly when the bot shuts down.
-        """
-        try:
-            if hasattr(self, 'telemetry_leaderboard') and self.telemetry_leaderboard:
-                self.telemetry_leaderboard.save_leaderboard()
         except (OSError, AttributeError, TypeError, ValueError, IOError):
             pass  # Do not log; stream may be closed during atexit
     
