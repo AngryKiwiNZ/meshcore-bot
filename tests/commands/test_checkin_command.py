@@ -112,8 +112,12 @@ class TestCheckinCommand:
         assert result is True
         response = checkin_bot.command_manager.send_response.call_args[0][1]
         assert response.startswith("Recent check-ins:")
-        assert "Bob" in response
-        assert "Alice" in response
+        lines = response.splitlines()
+        assert len(lines) >= 3
+        assert lines[1].startswith("1. Bob - ")
+        assert "all good" in lines[1]
+        assert lines[2].startswith("2. Alice - ")
+        assert "safe at home" in lines[2]
 
     @pytest.mark.asyncio
     async def test_lookup_returns_latest_status(self, checkin_bot):

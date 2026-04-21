@@ -222,15 +222,21 @@ class CheckinCommand(BaseCommand):
         if not rows:
             return f"No check-ins recorded in the last {self.recent_window_days} day(s)."
 
-        parts = []
-        for row in rows:
-            entry = f"{row['display_name']} {self._format_age(row['checkin_time'])}"
+        lines = ["Recent check-ins:"]
+        for index, row in enumerate(rows, start=1):
+            entry = f"{index}. {row['display_name']} - {self._format_age(row['checkin_time'])}"
             if row["status_text"]:
-                entry += f" ({truncate_string(row['status_text'], 28)})"
-            parts.append(entry)
+                entry += f" - {truncate_string(row['status_text'], 28)}"
 
-        response = "Recent check-ins: " + " | ".join(parts)
-        return truncate_string(response, self.MAX_RESPONSE_LENGTH)
+            candidate = "\n".join(lines + [entry])
+            if len(candidate) > self.MAX_RESPONSE_LENGTH:
+                if len(lines) == 1:
+                    return truncate_string(candidate, self.MAX_RESPONSE_LENGTH)
+                lines.append("...")
+                break
+            lines.append(entry)
+
+        return "\n".join(lines)
 
     def _handle_lookup(self, query: str) -> str:
         """Look up the latest check-in by name, sender ID, or pubkey."""
