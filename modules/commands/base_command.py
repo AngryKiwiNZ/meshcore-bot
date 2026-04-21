@@ -541,20 +541,50 @@ class BaseCommand(ABC):
         if not lines:
             return []
 
+        def split_line_for_limit(text: str, limit: int) -> List[str]:
+            """Split a single line into pieces that fit within the provided limit."""
+            if limit <= 0:
+                return [text]
+            if len(text) <= limit:
+                return [text]
+
+            pieces: List[str] = []
+            remaining = text
+            while len(remaining) > limit:
+                split_at = remaining.rfind(" ", 0, limit + 1)
+                if split_at <= 0:
+                    pieces.append(remaining[:limit])
+                    remaining = remaining[limit:]
+                else:
+                    pieces.append(remaining[:split_at])
+                    remaining = remaining[split_at + 1:]
+            if remaining:
+                pieces.append(remaining)
+            return pieces
+
         def pack_lines(total_chunks: int) -> List[str]:
             chunks: List[str] = []
             current_lines: List[str] = []
 
-            for line in lines:
+            for raw_line in lines:
                 prefix = f"{len(chunks) + 1}/{total_chunks} " if total_chunks > 1 else ""
-                candidate_lines = current_lines + [line]
-                candidate = prefix + "\n".join(candidate_lines)
-                if current_lines and len(candidate) > max_chunk_length:
-                    finalized_prefix = f"{len(chunks) + 1}/{total_chunks} " if total_chunks > 1 else ""
-                    chunks.append(finalized_prefix + "\n".join(current_lines))
-                    current_lines = [line]
-                else:
-                    current_lines = candidate_lines
+                content_limit = max_chunk_length - len(prefix)
+                expanded_lines: List[str] = []
+                for subline in str(raw_line).split("\n"):
+                    if not subline:
+                        expanded_lines.append(subline)
+                        continue
+                    expanded_lines.extend(split_line_for_limit(subline, content_limit))
+
+                for line in expanded_lines:
+                    candidate_lines = current_lines + [line]
+                    candidate = prefix + "\n".join(candidate_lines)
+                    if current_lines and len(candidate) > max_chunk_length:
+                        finalized_prefix = f"{len(chunks) + 1}/{total_chunks} " if total_chunks > 1 else ""
+                        chunks.append(finalized_prefix + "\n".join(current_lines))
+                        current_lines = [line]
+                    else:
+                        current_lines = candidate_lines
 
             if current_lines:
                 prefix = f"{len(chunks) + 1}/{total_chunks} " if total_chunks > 1 else ""
