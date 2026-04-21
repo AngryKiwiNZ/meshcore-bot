@@ -97,6 +97,23 @@ class GlobalWxCommand(BaseCommand):
             str: Help text string.
         """
         return self.translate('commands.gwx.help')
+
+    def _looks_like_location_code(self, value: Optional[str]) -> bool:
+        """Return True for opaque code-like labels that are not helpful to users."""
+        if not value:
+            return False
+        text = value.strip()
+        if len(text) < 4 or len(text) > 10 or " " in text:
+            return False
+        return bool(re.fullmatch(r"[A-Z0-9]+", text)) and any(ch.isdigit() for ch in text)
+
+    def _wind_speed_suffix(self) -> str:
+        """Return a human-readable wind speed unit suffix."""
+        if self.wind_speed_unit == "ms":
+            return "m/s"
+        if self.wind_speed_unit == "kmh":
+            return "km/h"
+        return "mph"
     
     def matches_keyword(self, message: MeshMessage) -> bool:
         """Check if message starts with a weather keyword.
@@ -676,8 +693,9 @@ class GlobalWxCommand(BaseCommand):
                     for i, part in enumerate(parts[1:], 1):
                         # Check if this part looks like a city (not a state/province or country)
                         if i < len(parts) - 1:  # Not the last part (country)
-                            city = part
-                            break
+                            if not self._looks_like_location_code(part):
+                                city = part
+                                break
         
         # If still no city, try extracting from display_name first part (but clean it up)
         if not city and geocode_result and hasattr(geocode_result, 'raw'):
@@ -692,7 +710,8 @@ class GlobalWxCommand(BaseCommand):
                                    ' Plaza', ' Center', ' Centre', ' Park', ' Square']:
                         if suffix in first_part:
                             first_part = first_part.replace(suffix, '').strip()
-                    city = first_part
+                    if not self._looks_like_location_code(first_part):
+                        city = first_part
         
         # For US locations, include state abbreviation
         if country_code == 'US':
@@ -706,7 +725,7 @@ class GlobalWxCommand(BaseCommand):
                 return f"{city}, US"
         
         # For international locations, always use country code if available
-        if city:
+        if city and not self._looks_like_location_code(city):
             if country_code:
                 return f"{city}, {country_code}"
             elif address_info and address_info.get('country'):
@@ -723,11 +742,18 @@ class GlobalWxCommand(BaseCommand):
         if fallback:
             # Try to extract city name from input (before first comma if present)
             parts = fallback.split(',')
-            city_part = parts[0].strip().title()
+            raw_city_part = parts[0].strip()
+            city_part = raw_city_part.title()
             # Remove common suffixes
             for suffix in [' Terminal', ' Station', ' Airport', ' Hotel', ' Building']:
                 if suffix in city_part:
                     city_part = city_part.replace(suffix, '').strip()
+
+            if self._looks_like_location_code(raw_city_part):
+                if len(parts) > 1:
+                    country_part = parts[-1].strip()
+                    return country_part[:10]
+                return fallback.title()
             
             if country_code:
                 return f"{city_part}, {country_code}"
@@ -852,17 +878,14 @@ class GlobalWxCommand(BaseCommand):
             pressure = current.get('surface_pressure')
             weather_code = current.get('weather_code', 0)
             
-            # Convert visibility to miles based on actual unit from API
-            # API returns visibility in feet when using imperial units
+            # Convert visibility to kilometers based on actual unit from API
             if visibility is not None:
                 if visibility_unit == 'ft' or 'ft' in str(visibility_unit).lower():
-                    # Convert from feet to miles (1 mile = 5280 feet)
-                    visibility_mi = visibility / 5280.0
+                    visibility_km = visibility * 0.0003048
                 else:
-                    # Assume meters, convert to miles (1 mile = 1609.34 meters)
-                    visibility_mi = visibility / 1609.34
+                    visibility_km = visibility / 1000.0
             else:
-                visibility_mi = None
+                visibility_km = None
             
             # Pressure validation - account for high elevation locations
             # Normal sea level pressure is 1013 hPa, range is typically 950-1050 hPa
@@ -894,11 +917,11 @@ class GlobalWxCommand(BaseCommand):
             if abs(feels_like - temp) >= 5:
                 weather += f" (feels {feels_like}{temp_symbol})"
             
-            # Add wind info (always show if >= 3 mph, show gusts if significant)
+            # Add wind info in readable format instead of compact aviation-style shorthand
             if wind_speed >= 3:
-                weather += f" {wind_direction}{wind_speed}"
+                weather += f" 💨{wind_direction} {wind_speed}{self._wind_speed_suffix()}"
                 if wind_gusts > wind_speed + 3:
-                    weather += f"G{wind_gusts}"
+                    weather += f" gust {wind_gusts}"
             
             # Add humidity
             weather += f" {humidity}%RH"
@@ -911,13 +934,12 @@ class GlobalWxCommand(BaseCommand):
                 dewpoint_val = int(dewpoint)
                 conditions.append(f"💧{dewpoint_val}{temp_symbol}")
             
-            # Add visibility (already converted to miles above)
-            if visibility_mi is not None and visibility_mi > 0:
-                # Cap visibility at 20 miles for display (beyond that is essentially unlimited)
-                visibility_display = int(visibility_mi)
-                if visibility_display > 20:
-                    visibility_display = 20
-                conditions.append(f"👁️{visibility_display}mi")
+            # Add visibility in kilometers
+            if visibility_km is not None and visibility_km > 0:
+                visibility_display = int(visibility_km)
+                if visibility_display > 32:
+                    visibility_display = 32
+                conditions.append(f"👁️{visibility_display}km")
             
             # Add pressure (convert from hPa to display format)
             if pressure is not None:

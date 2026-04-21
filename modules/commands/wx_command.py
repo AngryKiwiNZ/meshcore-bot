@@ -59,6 +59,37 @@ class WxCommand(BaseCommand):
     NO_DATA_NOGPS = "No GPS data available"
     ERROR_FETCHING_DATA = "Error fetching weather data"
     NO_ALERTS = "No weather alerts"
+
+    def _wind_speed_unit_suffix(self) -> str:
+        """Return a human-readable wind speed unit suffix for configured weather units."""
+        wind_unit = self.bot.config.get('Weather', 'wind_speed_unit', fallback='kmh').lower()
+        if wind_unit == 'ms':
+            return 'm/s'
+        if wind_unit == 'kmh':
+            return 'km/h'
+        return 'mph'
+
+    def _convert_mph_to_config_speed(self, speed_mph: float) -> int:
+        """Convert NOAA mph values to the configured display unit."""
+        wind_unit = self.bot.config.get('Weather', 'wind_speed_unit', fallback='kmh').lower()
+        if wind_unit == 'ms':
+            return int(round(speed_mph * 0.44704))
+        if wind_unit == 'kmh':
+            return int(round(speed_mph * 1.60934))
+        return int(round(speed_mph))
+
+    def _format_noaa_wind_display(self, wind_direction: str, wind_speed: str) -> Optional[str]:
+        """Format NOAA wind data without aviation-style compact codes."""
+        if not wind_speed or not wind_direction:
+            return None
+        wind_match = re.search(r'(\d+)', wind_speed)
+        if not wind_match:
+            return None
+        wind_num = self._convert_mph_to_config_speed(float(wind_match.group(1)))
+        wind_dir = self.abbreviate_wind_direction(wind_direction)
+        if not wind_dir:
+            return None
+        return f"{wind_dir} {wind_num}{self._wind_speed_unit_suffix()}"
     
     def __init__(self, bot):
         super().__init__(bot)
@@ -895,13 +926,9 @@ class WxCommand(BaseCommand):
             weather = f"{day_name}: {weather_emoji}{short_forecast} {temp}°{temp_unit}"
             
             # Add wind info if available
-            if wind_speed and wind_direction:
-                wind_match = re.search(r'(\d+)', wind_speed)
-                if wind_match:
-                    wind_num = wind_match.group(1)
-                    wind_dir = self.abbreviate_wind_direction(wind_direction)
-                    if wind_dir:
-                        weather += f" {wind_dir}{wind_num}"
+            wind_display = self._format_noaa_wind_display(wind_direction, wind_speed)
+            if wind_display:
+                weather += f" 💨{wind_display}"
             
             # PRIORITIZE: Add all available details to current period first
             # Get observation station data for more accurate current conditions
@@ -1025,18 +1052,15 @@ class WxCommand(BaseCommand):
                     else:
                         period_str = f" | {period_name}: {period_emoji}{period_short} {period_temp}°"
                     
-                    # Add wind info if space allows (using display width)
+                    # Add wind info if space allows (using readable display)
                     if period_wind_speed and period_wind_direction:
                         test_str = weather + period_str
                         if self._count_display_width(test_str) < max_length - 10:
-                            wind_match = re.search(r'(\d+)', period_wind_speed)
-                            if wind_match:
-                                wind_num = wind_match.group(1)
-                                wind_dir = self.abbreviate_wind_direction(period_wind_direction)
-                                if wind_dir:
-                                    wind_info = f" {wind_dir}{wind_num}"
-                                    if self._count_display_width(test_str + wind_info) <= max_length:
-                                        period_str += wind_info
+                            wind_display = self._format_noaa_wind_display(period_wind_direction, period_wind_speed)
+                            if wind_display:
+                                wind_info = f" 💨{wind_display}"
+                                if self._count_display_width(test_str + wind_info) <= max_length:
+                                    period_str += wind_info
                     
                     # Add additional details (humidity, dew point, visibility, etc.)
                     # But only if current period isn't too long - prioritize current period details
@@ -1083,18 +1107,15 @@ class WxCommand(BaseCommand):
                         else:
                             period_str = f" | {period_name}: {period_emoji}{period_short} {period_temp}°"
                         
-                        # Add wind info if space allows (using display width)
+                        # Add wind info if space allows (using readable display)
                         if period_wind_speed and period_wind_direction:
                             test_str = weather + period_str
                             if self._count_display_width(test_str) < max_length - 10:
-                                wind_match = re.search(r'(\d+)', period_wind_speed)
-                                if wind_match:
-                                    wind_num = wind_match.group(1)
-                                    wind_dir = self.abbreviate_wind_direction(period_wind_direction)
-                                    if wind_dir:
-                                        wind_info = f" {wind_dir}{wind_num}"
-                                        if self._count_display_width(test_str + wind_info) <= max_length:
-                                            period_str += wind_info
+                                wind_display = self._format_noaa_wind_display(period_wind_direction, period_wind_speed)
+                                if wind_display:
+                                    wind_info = f" 💨{wind_display}"
+                                    if self._count_display_width(test_str + wind_info) <= max_length:
+                                        period_str += wind_info
                         
                     # Add additional details (humidity, dew point, visibility, etc.)
                     # But only if current period isn't too long - prioritize current period details
@@ -1173,14 +1194,11 @@ class WxCommand(BaseCommand):
                     if period_wind_speed and period_wind_direction:
                         test_str = weather + period_str
                         if self._count_display_width(test_str) < wind_threshold:
-                            wind_match = re.search(r'(\d+)', period_wind_speed)
-                            if wind_match:
-                                wind_num = wind_match.group(1)
-                                wind_dir = self.abbreviate_wind_direction(period_wind_direction)
-                                if wind_dir:
-                                    wind_info = f" {wind_dir}{wind_num}"
-                                    if self._count_display_width(test_str + wind_info) <= max_length:
-                                        period_str += wind_info
+                            wind_display = self._format_noaa_wind_display(period_wind_direction, period_wind_speed)
+                            if wind_display:
+                                wind_info = f" 💨{wind_display}"
+                                if self._count_display_width(test_str + wind_info) <= max_length:
+                                    period_str += wind_info
                     
                     # Add additional details (humidity, dew point, visibility, etc.)
                     # But only if current period isn't too long - prioritize current period details
@@ -1386,16 +1404,10 @@ class WxCommand(BaseCommand):
                 if temp:
                     line_parts.append(f"{temp}°")
                 
-                # Add wind if available (use compact format)
-                if wind_speed and wind_direction:
-                    wind_match = re.search(r'(\d+)', wind_speed)
-                    if wind_match:
-                        wind_num = wind_match.group(1)
-                        # Get direction abbreviation (first 1-2 chars)
-                        wind_dir_abbrev = wind_direction[:2] if len(wind_direction) >= 2 else wind_direction
-                        # Remove any spaces and make uppercase
-                        wind_dir_abbrev = wind_dir_abbrev.replace(' ', '').upper()
-                        line_parts.append(f"{wind_dir_abbrev}{wind_num}")
+                # Add wind if available using readable format
+                wind_display = self._format_noaa_wind_display(wind_direction, wind_speed)
+                if wind_display:
+                    line_parts.append(f"💨{wind_display}")
                 
                 line = " ".join(line_parts)
                 
@@ -1486,13 +1498,9 @@ class WxCommand(BaseCommand):
                 period_str = f"{period_name}: {emoji}{short_forecast} {temp}°{temp_unit}"
                 
                 # Add wind info
-                if wind_speed and wind_direction:
-                    wind_match = re.search(r'(\d+)', wind_speed)
-                    if wind_match:
-                        wind_num = wind_match.group(1)
-                        wind_dir = self.abbreviate_wind_direction(wind_direction)
-                        if wind_dir:
-                            period_str += f" {wind_dir}{wind_num}"
+                wind_display = self._format_noaa_wind_display(wind_direction, wind_speed)
+                if wind_display:
+                    period_str += f" 💨{wind_display}"
                 
                 # Try to extract high/low
                 high_low = self.extract_high_low(detailed_forecast)
@@ -1708,7 +1716,7 @@ class WxCommand(BaseCommand):
         
         # Add visibility if available and space allows
         if visibility:
-            vis_str = f" 👁️{visibility}mi"
+            vis_str = f" 👁️{visibility}km"
             if self._count_display_width(result + vis_str) + current_weather_length <= max_length:
                 result += vis_str
                 current_length = current_weather_length + self._count_display_width(result)
@@ -3195,7 +3203,7 @@ class WxCommand(BaseCommand):
                 # Validate visibility (reasonable range 0-20 miles)
                 try:
                     if 0 <= int(vis_val) <= 20:
-                        return vis_val
+                        return str(int(round(int(vis_val) * 1.60934)))
                 except ValueError:
                     continue
         
@@ -3349,7 +3357,7 @@ class WxCommand(BaseCommand):
             
             visibility_val = props.get('visibility', {}).get('value')
             if visibility_val is not None:
-                visibility = int(visibility_val * 0.000621371)  # Convert m to miles
+                visibility = int(round(visibility_val / 1000.0))  # Convert m to km
                 if visibility > 0:
                     obs_data_dict['visibility'] = str(visibility)
             
@@ -3386,7 +3394,7 @@ class WxCommand(BaseCommand):
             conditions.append(f"💧{obs_data['dew_point']}°")
         
         if 'visibility' in obs_data:
-            conditions.append(f"👁️{obs_data['visibility']}mi")
+            conditions.append(f"👁️{obs_data['visibility']}km")
         
         if 'wind_gusts' in obs_data:
             conditions.append(f"💨{obs_data['wind_gusts']}")
