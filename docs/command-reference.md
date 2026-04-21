@@ -422,37 +422,26 @@ satpass hubble visual
 
 ## Emergency Commands
 
-### `alert <location> [all]`
+### `alert`
 
-Get active emergency incidents for a location.
+Get New Zealand MetService CAP alerts filtered for Nelson (default provider).
 
 **Usage:**
 ```
-alert <city|zipcode|street city|lat,lon|county> [all]
+alert
 ```
-
-**Parameters:**
-- `location` - City name, zipcode, street address with city, coordinates, or county name
-- `all` - Show all incidents (default: shows most relevant incidents)
 
 **Examples:**
 ```
-alert seattle
-alert 98101
-alert main street seattle
-alert 47.6,-122.3
-alert seattle all
-alert king county
+alert
 ```
 
-**Response:** Active emergency incidents including:
-- Incident type and description
-- Location
-- Agency
-- Time
-- Severity level
+**Response:**
+- Returns only alert descriptions containing `Nelson` from `https://alerts.metservice.com/cap/rss`
+- If no matches: `There are no alerts for the Nelson region at present out of x current alerts`
+- `x` is the total alerts fetched from the RSS feed (for troubleshooting)
 
-**Note:** Requires `Alert_Command` configuration in `config.ini` with agency IDs for your area.
+**Note:** `Alert_Command.provider = metservice` is the default. `pulsepoint` remains available for legacy US incident mode.
 
 ---
 

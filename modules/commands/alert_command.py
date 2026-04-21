@@ -8,7 +8,9 @@ import re
 import base64
 import hashlib
 import json
+import html
 import requests
+import feedparser
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Tuple
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -188,6 +190,7 @@ class AlertCommand(BaseCommand):
         {"name": "all", "description": "Show all incidents (not just nearby)"}
     ]
     requires_internet = True  # Requires internet access for PulsePoint API
+    METSERVICE_RSS_URL = "https://alerts.metservice.com/cap/rss"
     
     def __init__(self, bot):
         super().__init__(bot)
@@ -202,6 +205,7 @@ class AlertCommand(BaseCommand):
         
         # Get max incident age in hours (default 24 hours) - filter out incidents older than this
         self.max_incident_age_hours = self.get_config_value('Alert_Command', 'max_incident_age_hours', fallback=24.0, value_type='float')
+        self.provider = self.get_config_value('Alert_Command', 'provider', fallback='metservice', value_type='str').lower()
 
         # Load enabled (standard enabled; alert_enabled legacy)
         self.alert_enabled = self.get_config_value('Alert_Command', 'enabled', fallback=None, value_type='bool')
@@ -901,6 +905,9 @@ class AlertCommand(BaseCommand):
         Returns:
             bool: True if executed successfully, False otherwise.
         """
+        if self.provider == "metservice":
+            return await self._execute_metservice_alerts(message)
+
         content = message.content.strip()
         
         # Parse command
@@ -1085,4 +1092,48 @@ class AlertCommand(BaseCommand):
             await self.send_response(message, f"Error fetching alerts: {str(e)}")
             return True
 
+    async def _execute_metservice_alerts(self, message: MeshMessage) -> bool:
+        """Fetch MetService CAP RSS and return only alerts mentioning Nelson in description."""
+        try:
+            response = requests.get(self.METSERVICE_RSS_URL, timeout=self.url_timeout)
+            if not response.ok:
+                await self.send_response(message, f"🚨 Alert feed unavailable (HTTP {response.status_code})")
+                return True
 
+            parsed = feedparser.parse(response.text)
+            entries = parsed.entries or []
+            total_alerts = len(entries)
+
+            nelson_descriptions: List[str] = []
+            for entry in entries:
+                raw_description = entry.get('description', '')
+                description = re.sub(r'<[^>]+>', ' ', html.unescape(raw_description))
+                description = re.sub(r'\s+', ' ', description).strip()
+                if "nelson" in description.lower():
+                    nelson_descriptions.append(description)
+
+            if not nelson_descriptions:
+                await self.send_response(
+                    message,
+                    f"There are no alerts for the Nelson region at present out of {total_alerts} current alerts",
+                )
+                return True
+
+            max_length = self.get_max_message_length(message)
+            lines = [f"🚨 Nelson alerts ({len(nelson_descriptions)}/{total_alerts}):"]
+
+            for description in nelson_descriptions:
+                line = f"• {description}"
+                if len("\n".join(lines + [line])) > max_length:
+                    remaining = len(nelson_descriptions) - (len(lines) - 1)
+                    if remaining > 0:
+                        lines.append(f"• (+{remaining} more)")
+                    break
+                lines.append(line)
+
+            await self.send_response(message, "\n".join(lines))
+            return True
+        except Exception as e:
+            self.logger.error(f"Error fetching MetService alerts: {e}")
+            await self.send_response(message, f"🚨 Error fetching alerts: {str(e)[:90]}")
+            return True

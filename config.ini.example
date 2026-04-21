@@ -1010,6 +1010,12 @@ backfill_lookback_days = 30
 # Enable or disable the alert command (true/false)
 enabled = false
 
+# Alert data provider
+# Options:
+#   metservice - New Zealand MetService CAP RSS feed (default)
+#   pulsepoint - PulsePoint API with agency.* configuration below
+provider = metservice
+
 # PulsePoint agency IDs by county/region
 # Format: agency.<county_name> = comma-separated agency IDs
 # Get agency IDs from: https://web.pulsepoint.org/ or PulsePoint searchagencies API
