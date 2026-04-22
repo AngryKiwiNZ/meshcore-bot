@@ -236,6 +236,46 @@ class TestCheckKeywords:
         assert any(trigger == "help" for trigger, _ in matches)
 
 
+class TestExecuteCommandsChannelWhitelist:
+    """Tests that execute_commands respects channel_keywords for command-style plugins."""
+
+    @pytest.mark.asyncio
+    async def test_non_whitelisted_command_is_ignored_in_channel(self, cm_bot):
+        cm_bot.config.set("Channels", "channel_keywords", "ping")
+
+        mock_cmd = MagicMock()
+        mock_cmd.should_execute = Mock(return_value=True)
+        mock_cmd.get_response_format = Mock(return_value=None)
+        mock_cmd.can_execute_now = Mock(return_value=True)
+        mock_cmd.requires_internet = False
+        mock_cmd.execute = AsyncMock(return_value=True)
+        mock_cmd.last_response = None
+
+        manager = make_manager(cm_bot, commands={"wx": mock_cmd})
+
+        await manager.execute_commands(mock_message(content="wx", channel="general", is_dm=False))
+
+        mock_cmd.execute.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_whitelisted_command_executes_in_channel(self, cm_bot):
+        cm_bot.config.set("Channels", "channel_keywords", "ping")
+
+        mock_cmd = MagicMock()
+        mock_cmd.should_execute = Mock(return_value=True)
+        mock_cmd.get_response_format = Mock(return_value=None)
+        mock_cmd.can_execute_now = Mock(return_value=True)
+        mock_cmd.requires_internet = False
+        mock_cmd.execute = AsyncMock(return_value=True)
+        mock_cmd.last_response = None
+
+        manager = make_manager(cm_bot, commands={"ping": mock_cmd})
+
+        await manager.execute_commands(mock_message(content="ping", channel="general", is_dm=False))
+
+        mock_cmd.execute.assert_awaited_once()
+
+
 class TestGetHelpForCommand:
     """Tests for command-specific help."""
 

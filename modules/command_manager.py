@@ -1346,6 +1346,10 @@ class CommandManager:
         # Check each command to see if it should execute
         for command_name, command in self.commands.items():
             if command.should_execute(message):
+                # When channel_keywords is set, only allow listed triggers in channel
+                if not self._is_channel_trigger_allowed(command_name, message):
+                    continue
+
                 # Only execute commands that don't have a response format (they handle their own responses)
                 response_format = command.get_response_format()
                 if response_format is not None:
