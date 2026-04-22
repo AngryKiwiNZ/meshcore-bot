@@ -76,7 +76,7 @@ Behavior:
 - Saves a timestamped status for the sender
 - Shows recent unique check-ins
 - Looks up the last known check-in for a user or node
-- Automatically expires old check-ins after the configured retention window
+- Automatically expires old check-ins after the configured retention window (72 hours by default)
 
 Related docs:
 - [Command reference](docs/command-reference.md)
