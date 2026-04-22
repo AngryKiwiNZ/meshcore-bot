@@ -11,7 +11,7 @@ This project builds on earlier work from:
 - Connect over `serial`, `ble`, or `tcp`
 - Plugin-based command system with built-in commands for weather, safety, routing, solar, sports, feeds, and more
 - `checkin` / `rollcall` command for net roll calls, emergency welfare checks, and recent status lookups
-- `wx` / `gwx` weather commands using Open-Meteo, with support for default locations, companion location fallback, and forecast options like `tomorrow` and `7d`
+- `wx` / `gwx` weather commands using MetService for New Zealand (far better and more accurate forecasts and observations) and Open-Meteo for international locations, with support for default locations, companion location fallback, and forecast options like `tomorrow` and `7d`
 - `alert` command with New Zealand MetService CAP RSS support enabled by default
 - Background services for scheduled weather, Discord bridging, packet capture, map uploads, earthquakes, and more
 - Rate limiting, DM support, monitored channels, logging, and persistent SQLite storage
@@ -98,7 +98,7 @@ gwx 35.6762,139.6503
 ```
 
 Highlights:
-- New Zealand forecasts via MetService by default
+- New Zealand forecasts via MetService, providing far better and more accurate weather forecasts and current observations
 - Global location support via geocoding
 - Default location fallback from `Weather.default_weather_location`
 - Companion location fallback when the sender has known coordinates
