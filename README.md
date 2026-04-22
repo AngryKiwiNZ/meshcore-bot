@@ -91,8 +91,7 @@ Common usage:
 
 ```text
 wx Auckland
-wx Nelson tomorrow
-wx Christchurch 7d
+wx Nelson
 gwx Tokyo
 gwx Paris, France
 gwx 35.6762,139.6503
@@ -100,8 +99,6 @@ gwx 35.6762,139.6503
 
 Highlights:
 - Global location support via geocoding
-- `tomorrow` forecast option
-- `7d` multi-day forecast option
 - Default location fallback from `Weather.default_weather_location`
 - Companion location fallback when the sender has known coordinates
 - Shared unit settings for temperature, wind, and precipitation
