@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Weather command for the MeshCore Bot
-Uses Open-Meteo via wx_international delegation
+Uses delegated MetService/Open-Meteo weather handling
 """
 
 import re
@@ -101,17 +101,19 @@ class WxCommand(BaseCommand):
         else:
             self.wxsim_parser = None
         
-        # NOAA module is intentionally disabled; wx delegates to Open-Meteo implementation.
-        weather_provider = bot.config.get('Weather', 'weather_provider', fallback='openmeteo').lower()
-        if weather_provider != 'openmeteo':
+        # NOAA module is intentionally disabled; wx delegates to the global weather implementation.
+        weather_provider = bot.config.get('Weather', 'weather_provider', fallback='metservice').lower()
+        if weather_provider not in ('openmeteo', 'metservice'):
             self.logger.info(
-                f"Weather provider '{weather_provider}' is not supported; forcing Open-Meteo provider"
+                f"Weather provider '{weather_provider}' is not supported; falling back to configured delegate defaults"
             )
         if WX_INTERNATIONAL_AVAILABLE:
             self.delegate_command = GlobalWxCommand(bot)
             self.delegate_command.keywords = ['wx', 'weather', 'wxa', 'wxalert']
             self.delegate_command.description = "Get weather information for any location (usage: wx Auckland)"
-            self.logger.info("NOAA weather module disabled; delegating wx command to wx_international (Open-Meteo)")
+            self.logger.info(
+                f"NOAA weather module disabled; delegating wx command to wx_international (provider={weather_provider})"
+            )
         else:
             self.delegate_command = None
             self.wx_enabled = False

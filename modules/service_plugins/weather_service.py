@@ -18,6 +18,10 @@ import re
 from urllib.parse import quote
 import json
 import math
+from ..clients.metservice_client import (
+    build_metservice_path_candidates,
+    fetch_metservice_public_weather,
+)
 
 # Try to import MQTT client (use paho-mqtt like packet capture service)
 try:
@@ -33,12 +37,12 @@ from .base_service import BaseServicePlugin
 class WeatherService(BaseServicePlugin):
     """Weather service providing scheduled forecasts and alert monitoring.
     
-    Manages daily Open-Meteo weather forecasts and monitors lightning
+    Manages daily weather forecasts and monitors lightning
     strikes via MQTT (Blitzortung).
     """
     
     config_section = 'Weather_Service'
-    description = "Scheduled Open-Meteo weather forecasts and lightning monitoring"
+    description = "Scheduled weather forecasts and lightning monitoring"
     
     def __init__(self, bot: Any):
         """Initialize weather service.
@@ -55,6 +59,8 @@ class WeatherService(BaseServicePlugin):
         self.my_position_lon = self.bot.config.getfloat('Weather_Service', 'my_position_lon', fallback=None)
         self.weather_channel = self.bot.config.get('Weather_Service', 'weather_channel', fallback='general')
         self.alerts_channel = self.bot.config.get('Weather_Service', 'alerts_channel', fallback='general')
+        self.weather_provider = self.bot.config.get('Weather', 'weather_provider', fallback='metservice').lower().strip()
+        self.metservice_location_path = self.bot.config.get('Weather', 'metservice_location_path', fallback='').strip()
         
         # Cache for location name (to avoid repeated reverse geocoding)
         self._cached_location_name: Optional[str] = None
@@ -88,7 +94,7 @@ class WeatherService(BaseServicePlugin):
             self.enabled = False
             return
         
-        # Get temperature/wind units from config (for Open-Meteo)
+        # Get temperature/wind units from config
         self.temperature_unit = self.bot.config.get('Weather', 'temperature_unit', fallback='celsius')
         self.wind_speed_unit = self.bot.config.get('Weather', 'wind_speed_unit', fallback='kmh')
         self.precipitation_unit = self.bot.config.get('Weather', 'precipitation_unit', fallback='mm')
@@ -426,14 +432,139 @@ class WeatherService(BaseServicePlugin):
                 self.logger.warning("Failed to get weather forecast for daily update")
         except Exception as e:
             self.logger.error(f"Error sending daily weather forecast: {e}")
+
+    def _metservice_condition_emoji(self, condition: Optional[str]) -> str:
+        """Map MetService condition codes to compact emojis."""
+        mapping = {
+            "cloudy": "☁️",
+            "drizzle": "🌦️",
+            "few-showers": "🌦️",
+            "fine": "☀️",
+            "fog": "🌫️",
+            "frost": "❄️",
+            "hail": "🌨️",
+            "mostly-cloudy": "☁️",
+            "partly-cloudy": "⛅",
+            "partly-cloudy-night": "🌙",
+            "rain": "🌧️",
+            "showers": "🌦️",
+            "snow": "❄️",
+            "thunder": "⛈️",
+            "wind-rain": "🌬️",
+            "windy": "🌬️",
+        }
+        return mapping.get((condition or "").strip().lower(), "🌤️")
+
+    def _metservice_condition_label(self, condition: Optional[str]) -> str:
+        text = (condition or "").replace("-", " ").strip()
+        return text.capitalize() if text else "Forecast"
+
+    async def _resolve_metservice_path_for_service(self, location_name: str) -> Optional[str]:
+        """Resolve configured service location to a MetService path."""
+        if self.metservice_location_path:
+            return self.metservice_location_path
+
+        try:
+            from ..utils import rate_limited_nominatim_reverse
+
+            coordinates_str = f"{self.my_position_lat}, {self.my_position_lon}"
+            location = await rate_limited_nominatim_reverse(self.bot, coordinates_str, timeout=5)
+            address_info = location.raw.get('address', {}) if location and hasattr(location, 'raw') else {}
+            if (address_info.get("country_code") or "").upper() != "NZ":
+                return None
+            candidates = build_metservice_path_candidates(location_name, address_info)
+            for candidate in candidates:
+                try:
+                    fetch_metservice_public_weather(candidate, session=self.api_session, timeout=10)
+                    return candidate
+                except Exception:
+                    continue
+        except Exception as e:
+            self.logger.debug(f"Error resolving MetService path: {e}")
+        return None
+
+    def _format_metservice_service_forecast(self, weather_data: dict, location_name: str) -> str:
+        """Format a compact daily forecast string from MetService data."""
+        current = weather_data.get("current_conditions") or {}
+        daily = (weather_data.get("daily_forecast") or {}).get("days") or []
+        observations = current.get("observations") or {}
+        temperature = ((observations.get("temperature") or [{}])[0] or {})
+        wind = ((observations.get("wind") or [{}])[0] or {})
+
+        temp_symbol = "°F" if self.temperature_unit == 'fahrenheit' else "°C"
+        condition = daily[0].get("condition") if daily else None
+        current_temp = temperature.get("current")
+        wind_speed = wind.get("averageSpeed")
+        wind_direction = wind.get("direction")
+
+        forecast_text = f"{location_name}: {self._metservice_condition_emoji(condition)}{self._metservice_condition_label(condition)}"
+        if current_temp is not None:
+            forecast_text += f" {int(round(float(current_temp)))}{temp_symbol}"
+        if wind_speed is not None:
+            forecast_text += f" {wind_direction or ''}{int(round(float(wind_speed)))}{self.wind_speed_unit}"
+
+        if len(daily) > 1:
+            tomorrow = daily[1]
+            tomorrow_forecast = ((tomorrow.get("forecasts") or [{}])[0] or {})
+            tomorrow_high = tomorrow_forecast.get("highTemp") or tomorrow.get("highTemp")
+            tomorrow_low = tomorrow_forecast.get("lowTemp") or tomorrow.get("lowTemp")
+            forecast_text += (
+                f" | Tomorrow: {self._metservice_condition_emoji(tomorrow.get('condition'))}"
+                f"{self._metservice_condition_label(tomorrow.get('condition'))} "
+                f"{int(round(float(tomorrow_low)))}-{int(round(float(tomorrow_high)))}{temp_symbol}"
+            )
+
+        return forecast_text
     
     async def _get_weather_forecast(self) -> str:
-        """Get weather forecast for configured position using Open-Meteo API.
+        """Get weather forecast for configured position.
         
         Returns:
             str: Formatted forecast string or error message.
         """
         try:
+            if self._cached_location_name is None:
+                try:
+                    from ..utils import rate_limited_nominatim_reverse, format_location_for_display
+                    coordinates_str = f"{self.my_position_lat}, {self.my_position_lon}"
+                    location = await rate_limited_nominatim_reverse(self.bot, coordinates_str, timeout=5)
+
+                    if location and hasattr(location, 'raw'):
+                        address = location.raw.get('address', {})
+                        city = (address.get('city') or 
+                               address.get('town') or 
+                               address.get('village') or 
+                               address.get('municipality') or
+                               address.get('suburb') or
+                               None)
+                        state = (address.get('state') or 
+                                address.get('province') or 
+                                address.get('region') or
+                                None)
+                        country = address.get('country')
+                        location_name = format_location_for_display(city, state, country)
+                        if not location_name:
+                            location_name = f"{self.my_position_lat:.2f},{self.my_position_lon:.2f}"
+                    else:
+                        location_name = f"{self.my_position_lat:.2f},{self.my_position_lon:.2f}"
+                    self._cached_location_name = location_name
+                except Exception as e:
+                    self.logger.debug(f"Error reverse geocoding location: {e}")
+                    self._cached_location_name = f"{self.my_position_lat:.2f},{self.my_position_lon:.2f}"
+
+            location_name = self._cached_location_name
+
+            if self.weather_provider == "metservice":
+                metservice_path = await self._resolve_metservice_path_for_service(location_name)
+                if metservice_path:
+                    try:
+                        weather_data = fetch_metservice_public_weather(
+                            metservice_path, session=self.api_session, timeout=10
+                        )
+                        return self._format_metservice_service_forecast(weather_data, location_name)
+                    except Exception as e:
+                        self.logger.warning(f"MetService weather fetch failed, falling back to Open-Meteo: {e}")
+
             # Open-Meteo API endpoint
             api_url = "https://api.open-meteo.com/v1/forecast"
             
@@ -479,39 +610,6 @@ class WeatherService(BaseServicePlugin):
             
             # Temperature unit symbol
             temp_symbol = "°F" if self.temperature_unit == 'fahrenheit' else "°C"
-            
-            # Get location name (cached to avoid repeated API calls)
-            if self._cached_location_name is None:
-                try:
-                    from ..utils import rate_limited_nominatim_reverse, format_location_for_display
-                    coordinates_str = f"{self.my_position_lat}, {self.my_position_lon}"
-                    location = await rate_limited_nominatim_reverse(self.bot, coordinates_str, timeout=5)
-                    
-                    if location and hasattr(location, 'raw'):
-                        address = location.raw.get('address', {})
-                        city = (address.get('city') or 
-                               address.get('town') or 
-                               address.get('village') or 
-                               address.get('municipality') or
-                               address.get('suburb') or
-                               None)
-                        state = (address.get('state') or 
-                                address.get('province') or 
-                                address.get('region') or
-                                None)
-                        country = address.get('country')
-                        location_name = format_location_for_display(city, state, country)
-                        if not location_name:
-                            location_name = f"{self.my_position_lat:.2f},{self.my_position_lon:.2f}"
-                    else:
-                        location_name = f"{self.my_position_lat:.2f},{self.my_position_lon:.2f}"
-                    self._cached_location_name = location_name
-                except Exception as e:
-                    self.logger.debug(f"Error reverse geocoding location: {e}")
-                    location_name = f"{self.my_position_lat:.2f},{self.my_position_lon:.2f}"
-                    self._cached_location_name = location_name
-            else:
-                location_name = self._cached_location_name
             
             # Format current forecast
             forecast_text = f"{location_name}: {weather_emoji}{weather_desc} {temp}{temp_symbol}"

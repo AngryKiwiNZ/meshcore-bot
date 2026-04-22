@@ -47,7 +47,8 @@ Examples of sections that configure specific commands or features:
 
 - **`[Path_Command]`** – Path decoding and repeater selection. See [Path Command](path-command-config.md) for all options.
 - **`[Prefix_Command]`** – Prefix lookup, prefix best, range limits.
-- **`[Weather]`** – Used by the `wx` / `gwx` commands and the Weather Service plugin (see [Weather Service](weather-service.md)). Defaults are metric (`celsius`, `kmh`, `mm`), but you can switch to imperial units in this section.
+- **`[Weather]`** – Used by the `wx` / `gwx` commands and the Weather Service plugin (see [Weather Service](weather-service.md)). Defaults are metric (`celsius`, `kmh`, `mm`), and `weather_provider` now defaults to `metservice` for NZ forecasts with Open-Meteo fallback for non-NZ locations.
+  You can also pin a known NZ forecast page with `metservice_location_path` if automatic MetService matching ever picks the wrong suburb/town page.
 - **`[Airplanes_Command]`** – Aircraft/ADS-B command (API URL, radius, limits, default fallback location).
 - **`[Aurora_Command]`** – Aurora command (default coordinates).
 - **`[Alert_Command]`** – Emergency alerts (agency IDs, etc.).

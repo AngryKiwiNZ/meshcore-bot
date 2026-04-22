@@ -98,6 +98,7 @@ gwx 35.6762,139.6503
 ```
 
 Highlights:
+- New Zealand forecasts via MetService by default
 - Global location support via geocoding
 - Default location fallback from `Weather.default_weather_location`
 - Companion location fallback when the sender has known coordinates
@@ -111,6 +112,10 @@ Related docs:
 - [Command reference](docs/command-reference.md)
 - [Weather service](docs/weather-service.md)
 - [Configuration guide](docs/configuration.md)
+
+Weather provider behavior:
+- `metservice` is now the default for New Zealand weather/forecast output
+- `openmeteo` remains available and is still used as the fallback for international locations
 
 ### Alerts via MetService
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Global Weather command for the MeshCore Bot
-Provides worldwide weather information using Open-Meteo API
+Provides worldwide weather information with MetService/Open-Meteo support
 """
 
 import re
@@ -9,6 +9,10 @@ import requests
 from datetime import datetime, timedelta
 from geopy.geocoders import Nominatim
 from ...utils import rate_limited_nominatim_geocode_sync, rate_limited_nominatim_reverse_sync, get_nominatim_geocoder, geocode_city_sync, geocode_zipcode_sync
+from ...clients.metservice_client import (
+    build_metservice_path_candidates,
+    fetch_metservice_public_weather,
+)
 from ..base_command import BaseCommand
 from ...models import MeshMessage
 from typing import Any, List, Optional, Tuple, Union
@@ -34,7 +38,7 @@ class GlobalWxCommand(BaseCommand):
     requires_internet = True  # Requires internet access for Open-Meteo API and geocoding
     
     # Documentation
-    short_description = "Get weather for any global location using Open-Meteo API"
+    short_description = "Get weather for any global location"
     usage = "gwx <location> [tomorrow|7d|hourly]"
     examples = ["gwx Tokyo", "gwx Paris, France"]
     parameters = [
@@ -67,6 +71,10 @@ class GlobalWxCommand(BaseCommand):
         self.default_weather_location = self.bot.config.get(
             'Weather', 'default_weather_location', fallback='Nelson, New Zealand'
         ).strip() or 'Nelson, New Zealand'
+        self.weather_provider = self.bot.config.get('Weather', 'weather_provider', fallback='metservice').lower().strip()
+        self.metservice_location_path = self.bot.config.get(
+            'Weather', 'metservice_location_path', fallback=''
+        ).strip()
         
         # Get unit preferences from config
         self.temperature_unit = self.bot.config.get('Weather', 'temperature_unit', fallback='celsius').lower()
@@ -114,6 +122,155 @@ class GlobalWxCommand(BaseCommand):
         if self.wind_speed_unit == "kmh":
             return "km/h"
         return "mph"
+
+    def _should_try_metservice(self, address_info: dict) -> bool:
+        """Return True when config prefers MetService and location is in NZ."""
+        if self.weather_provider not in ("metservice", ""):
+            return False
+        country_code = (address_info or {}).get("country_code", "").upper()
+        return country_code == "NZ"
+
+    def _metservice_condition_emoji(self, condition: Optional[str]) -> str:
+        """Map MetService condition codes to compact emojis."""
+        mapping = {
+            "cloudy": "☁️",
+            "drizzle": "🌦️",
+            "few-showers": "🌦️",
+            "few-showers-night": "🌦️",
+            "fine": "☀️",
+            "fog": "🌫️",
+            "frost": "❄️",
+            "hail": "🌨️",
+            "mostly-cloudy": "☁️",
+            "partly-cloudy": "⛅",
+            "partly-cloudy-night": "🌙",
+            "rain": "🌧️",
+            "showers": "🌦️",
+            "snow": "❄️",
+            "thunder": "⛈️",
+            "wind-rain": "🌬️",
+            "windy": "🌬️",
+        }
+        return mapping.get((condition or "").strip().lower(), "🌤️")
+
+    def _metservice_condition_label(self, condition: Optional[str]) -> str:
+        """Convert condition code into a readable phrase."""
+        text = (condition or "").replace("-", " ").strip()
+        return text.capitalize() if text else "Forecast"
+
+    def _resolve_metservice_path(self, location: str, address_info: dict) -> Optional[str]:
+        """Resolve a user-facing location string to a MetService public path."""
+        candidates = []
+        if location == self.default_weather_location and self.metservice_location_path:
+            candidates.append(self.metservice_location_path)
+        candidates.extend(build_metservice_path_candidates(location, address_info))
+
+        for candidate in candidates:
+            try:
+                fetch_metservice_public_weather(candidate, timeout=self.url_timeout)
+                return candidate
+            except Exception:
+                continue
+        return None
+
+    def _format_metservice_default_weather(
+        self, weather_data: dict, max_length: int, location_prefix_len: int = 0
+    ) -> str:
+        """Format current MetService conditions for the default wx reply."""
+        current = weather_data.get("current_conditions") or {}
+        daily = (weather_data.get("daily_forecast") or {}).get("days") or []
+        observations = current.get("observations") or {}
+        temperature = ((observations.get("temperature") or [{}])[0] or {})
+        pressure = ((observations.get("pressure") or [{}])[0] or {})
+        rain = ((observations.get("rain") or [{}])[0] or {})
+        wind = ((observations.get("wind") or [{}])[0] or {})
+
+        current_day = daily[0] if daily else {}
+        condition = current_day.get("condition")
+        temp = temperature.get("current")
+        feels_like = temperature.get("feelsLike")
+        high = current_day.get("highTemp") or temperature.get("high")
+        low = current_day.get("lowTemp") or temperature.get("low")
+        humidity = rain.get("relativeHumidity")
+        pressure_value = pressure.get("atSeaLevel")
+        wind_speed = wind.get("averageSpeed")
+        wind_gust = wind.get("gustSpeed")
+        wind_direction = wind.get("direction")
+
+        temp_symbol = "°F" if self.temperature_unit == "fahrenheit" else "°C"
+        period_name = self.translate('commands.gwx.periods.today')
+        if datetime.now().hour < 6 or datetime.now().hour >= 18:
+            period_name = self.translate('commands.gwx.periods.tonight')
+
+        weather = f"{period_name}: {self._metservice_condition_emoji(condition)}{self._metservice_condition_label(condition)}"
+        if temp is not None:
+            weather += f" {int(round(float(temp)))}{temp_symbol}"
+        if feels_like is not None and temp is not None and abs(float(feels_like) - float(temp)) >= 5:
+            weather += f" (feels {int(round(float(feels_like)))}{temp_symbol})"
+        if wind_speed is not None:
+            weather += f" 💨{wind_direction or ''} {int(round(float(wind_speed)))}{self._wind_speed_suffix()}".rstrip()
+            if wind_gust is not None and float(wind_gust) > float(wind_speed) + 3:
+                weather += f" gust {int(round(float(wind_gust)))}"
+        if humidity is not None:
+            weather += f" {int(round(float(humidity)))}%RH"
+        if pressure_value is not None:
+            weather += f" 📊{int(round(float(pressure_value)))}hPa"
+        if high is not None or low is not None:
+            if high is not None:
+                weather += f" | H:{int(round(float(high)))}{temp_symbol}"
+            if low is not None:
+                weather += f" L:{int(round(float(low)))}{temp_symbol}"
+
+        return weather
+
+    def _format_metservice_day(self, day: dict, label: str) -> str:
+        """Format one MetService day forecast."""
+        temp_symbol = "°F" if self.temperature_unit == "fahrenheit" else "°C"
+        condition = day.get("condition")
+        forecast = ((day.get("forecasts") or [{}])[0] or {})
+        high = forecast.get("highTemp") or day.get("highTemp")
+        low = forecast.get("lowTemp") or day.get("lowTemp")
+        statement = (forecast.get("statement") or "").strip()
+
+        line = f"{label}: {self._metservice_condition_emoji(condition)}{self._metservice_condition_label(condition)}"
+        if high is not None and low is not None:
+            line += f" {int(round(float(high)))}{temp_symbol}/{int(round(float(low)))}{temp_symbol}"
+        elif high is not None:
+            line += f" {int(round(float(high)))}{temp_symbol}"
+        if statement:
+            line += f" {statement}"
+        return line
+
+    def _format_metservice_multiday(self, days: List[dict], num_days: int) -> str:
+        """Format MetService multi-day output for numbered chunk sending."""
+        parts = []
+        for index, day in enumerate(days[1 : num_days + 1], start=1):
+            try:
+                day_label = (datetime.now() + timedelta(days=index)).strftime('%a')
+            except Exception:
+                day_label = f"D{index}"
+            condition = day.get("condition")
+            forecast = ((day.get("forecasts") or [{}])[0] or {})
+            high = forecast.get("highTemp") or day.get("highTemp")
+            low = forecast.get("lowTemp") or day.get("lowTemp")
+            temp_symbol = "°F" if self.temperature_unit == "fahrenheit" else "°C"
+            parts.append(
+                f"{day_label}: {self._metservice_condition_emoji(condition)}"
+                f"{self._metservice_condition_label(condition)} "
+                f"{int(round(float(high)))}{temp_symbol}/{int(round(float(low)))}{temp_symbol}"
+            )
+        return "\n".join(parts)
+
+    def _get_metservice_followup_forecasts(self, weather_data: dict, location_display: str) -> List[str]:
+        """Return tomorrow and day-after forecast messages for default wx replies."""
+        days = (weather_data.get("daily_forecast") or {}).get("days") or []
+        followups: List[str] = []
+        if len(days) > 1:
+            followups.append(f"{location_display}: {self._format_metservice_day(days[1], self.translate('commands.gwx.periods.tomorrow'))}")
+        if len(days) > 2:
+            day_label = (datetime.now() + timedelta(days=2)).strftime('%a')
+            followups.append(f"{location_display}: {self._format_metservice_day(days[2], day_label)}")
+        return followups
     
     def matches_keyword(self, message: MeshMessage) -> bool:
         """Check if message starts with a weather keyword.
@@ -523,15 +680,42 @@ class GlobalWxCommand(BaseCommand):
             
             # Calculate the length of the location prefix (location_display + ": ")
             location_prefix_len = len(f"{location_display}: ")
-            
-            # Get weather forecast from Open-Meteo based on type
-            # Pass location_prefix_len so weather formatting can account for it
-            if forecast_type == "tomorrow":
-                weather_text = self.get_open_meteo_weather(lat, lon, forecast_type="tomorrow", message=message, location_prefix_len=location_prefix_len)
-            elif forecast_type == "multiday":
-                weather_text = self.get_open_meteo_weather(lat, lon, forecast_type="multiday", num_days=num_days, message=message, location_prefix_len=location_prefix_len)
+            using_metservice = False
+            metservice_weather = None
+
+            if self._should_try_metservice(address_info):
+                metservice_path = self._resolve_metservice_path(location, address_info)
+                if metservice_path:
+                    try:
+                        metservice_weather = fetch_metservice_public_weather(metservice_path, timeout=self.url_timeout)
+                        using_metservice = True
+                    except Exception as e:
+                        self.logger.warning(f"MetService fetch failed for {metservice_path}: {e}")
+
+            if using_metservice and metservice_weather:
+                daily_days = (metservice_weather.get("daily_forecast") or {}).get("days") or []
+                if forecast_type == "tomorrow":
+                    if len(daily_days) > 1:
+                        weather_text = self._format_metservice_day(
+                            daily_days[1], self.translate('commands.gwx.periods.tomorrow')
+                        )
+                    else:
+                        weather_text = self.translate('commands.gwx.tomorrow_not_available')
+                elif forecast_type == "multiday":
+                    weather_text = self._format_metservice_multiday(daily_days, num_days)
+                else:
+                    weather_text = self._format_metservice_default_weather(
+                        metservice_weather, self.get_max_message_length(message) if message else 130, location_prefix_len
+                    )
             else:
-                weather_text = self.get_open_meteo_weather(lat, lon, message=message, location_prefix_len=location_prefix_len)
+                # Get weather forecast from Open-Meteo based on type
+                # Pass location_prefix_len so weather formatting can account for it
+                if forecast_type == "tomorrow":
+                    weather_text = self.get_open_meteo_weather(lat, lon, forecast_type="tomorrow", message=message, location_prefix_len=location_prefix_len)
+                elif forecast_type == "multiday":
+                    weather_text = self.get_open_meteo_weather(lat, lon, forecast_type="multiday", num_days=num_days, message=message, location_prefix_len=location_prefix_len)
+                else:
+                    weather_text = self.get_open_meteo_weather(lat, lon, message=message, location_prefix_len=location_prefix_len)
             
             # Check if it's an error (translated error message)
             error_fetching = self.translate('commands.gwx.error_fetching')
@@ -540,7 +724,10 @@ class GlobalWxCommand(BaseCommand):
             
             followup_messages: List[str] = []
             if forecast_type == "default":
-                followup_messages = self.get_open_meteo_followup_forecasts(lat, lon, location_display)
+                if using_metservice and metservice_weather:
+                    followup_messages = self._get_metservice_followup_forecasts(metservice_weather, location_display)
+                else:
+                    followup_messages = self.get_open_meteo_followup_forecasts(lat, lon, location_display)
 
             # Check for severe weather warnings (only for default forecast type)
             if forecast_type == "default":

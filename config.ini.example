@@ -518,10 +518,16 @@ prefix_best_do_not_suggest =
 # NOTE: Unit settings are used by both the wx and gwx commands and Weather_Service plugin
 
 # Weather provider selection
-# Options: openmeteo
-#   openmeteo: Use Open-Meteo API (global coverage, works worldwide)
-# Default: openmeteo
-weather_provider = openmeteo
+# Options: metservice, openmeteo
+#   metservice: Use MetService public forecast pages for New Zealand locations, with Open-Meteo fallback elsewhere
+#   openmeteo: Use Open-Meteo API everywhere
+# Default: metservice
+weather_provider = metservice
+
+# Optional explicit MetService path for your default NZ location
+# Useful if you want wx/service forecasts pinned to a known MetService page
+# Example: /towns-cities/regions/nelson/locations/nelson
+metservice_location_path = /towns-cities/regions/nelson/locations/nelson
 
 # Default state for city name disambiguation
 # When users type "wx seattle", it will search for "seattle, WA, USA"

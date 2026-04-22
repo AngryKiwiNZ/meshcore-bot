@@ -15,7 +15,7 @@ enabled = true
 # Your location (choose one option)
 my_position_lat = 47.6062
 my_position_lon = -122.3321
-# weather_location = Seattle, WA
+# weather_location = Nelson, New Zealand
 
 # Daily forecast time
 weather_alarm = 6:00              # Or "sunrise" / "sunset"
@@ -38,10 +38,10 @@ alerts_channel = #weather
 enabled = true
 my_position_lat = 47.6062         # Option A: latitude
 my_position_lon = -122.3321       # Option A: longitude
-# weather_location = Seattle, WA  # Option B: place name (Open-Meteo geocoding)
+# weather_location = Nelson, New Zealand  # Option B: place name
 weather_alarm = 6:00              # Time for daily forecast (HH:MM or sunrise/sunset)
 weather_channel = #weather        # Channel for forecasts
-alerts_channel = #weather         # Reserved (NOAA alerts disabled in Open-Meteo-only mode)
+alerts_channel = #weather         # Reserved for alert workflows
 ```
 
 `weather_location` is useful when you want to configure by city/place instead of coordinates.
@@ -109,7 +109,14 @@ Monitors real-time lightning strikes via Blitzortung MQTT:
 
 ## Weather Data Source
 
-Uses [Open-Meteo API](https://open-meteo.com/) (free, no API key required).
+Uses MetService public forecast data by default for New Zealand locations, with Open-Meteo fallback for non-NZ locations or when MetService matching is unavailable.
+
+Optional pinning for a specific NZ forecast page:
+```ini
+[Weather]
+weather_provider = metservice
+metservice_location_path = /towns-cities/regions/nelson/locations/nelson
+```
 
 **Temperature Units:**
 Inherited from `[Weather]` section (see Weather command docs):
