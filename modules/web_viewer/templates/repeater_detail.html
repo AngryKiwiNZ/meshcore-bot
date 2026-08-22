@@ -1,0 +1,704 @@
+{% extends "base.html" %}
+
+{% block title %}Repeater Detail{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-satellite-dish"></i> Repeater Detail
+        </h1>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+                    <div>
+                        <a href="/repeaters" class="text-decoration-none small">&larr; Back to repeater list</a>
+                        <h2 id="detail-title" class="mt-2 mb-1">Loading repeater...</h2>
+                        <div id="detail-subtitle" class="text-muted">Fetching repeater detail</div>
+                        <div class="small text-muted mt-1">Monitor status: <span id="detail-monitor-status">Loading...</span></div>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <div class="text-lg-end">
+                            <div class="text-muted small text-uppercase">Last Successful Update</div>
+                            <div id="detail-last-success" class="fs-5">n/a</div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" id="poll-device">
+                            <i class="fas fa-satellite-dish"></i> Poll Now
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning" id="clock-sync-device"
+                                title="The bot must be in this repeater's administrator list">
+                            <i class="fas fa-clock"></i> Clock Sync
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="detail-refresh-feedback" class="mb-3" style="display: none;"></div>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-terminal me-2"></i>Repeater Command Log</span>
+        <span class="small text-muted">Latest 25 lines</span>
+    </div>
+    <div class="card-body p-0">
+        <div id="detail-command-log" class="repeater-command-log" role="log" aria-live="polite">
+            <div class="command-log-empty">Loading command activity...</div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4 col-xl">
+        <div class="card h-100"><div class="card-body"><div class="text-muted text-uppercase small">Battery</div><div id="detail-battery" class="fs-4">n/a</div></div></div>
+    </div>
+    <div class="col-md-4 col-xl">
+        <div class="card h-100"><div class="card-body"><div class="text-muted text-uppercase small">Temperature</div><div id="detail-temperature" class="fs-4">n/a</div><div id="detail-temperature-updated" class="small text-muted mt-1"></div></div></div>
+    </div>
+    <div class="col-md-4 col-xl">
+        <div class="card h-100"><div class="card-body"><div class="text-muted text-uppercase small">Advert Clock</div><div id="detail-clock" class="fs-5">n/a</div></div></div>
+    </div>
+    <div class="col-md-4 col-xl">
+        <div class="card h-100"><div class="card-body"><div class="text-muted text-uppercase small">Advert Drift</div><div id="detail-drift" class="fs-4">n/a</div></div></div>
+    </div>
+    <div class="col-md-4 col-xl">
+        <div class="card h-100"><div class="card-body"><div class="text-muted text-uppercase small">Uptime</div><div id="detail-uptime" class="fs-4">n/a</div></div></div>
+    </div>
+    <div class="col-md-4 col-xl">
+        <div class="card h-100"><div class="card-body"><div class="text-muted text-uppercase small">Total Airtime</div><div id="detail-airtime" class="fs-5">n/a</div></div></div>
+    </div>
+    <div class="col-md-4 col-xl">
+        <div class="card h-100"><div class="card-body"><div class="text-muted text-uppercase small">Current Status</div><div id="detail-status" class="fs-4">n/a</div></div></div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Advanced Status</div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3"><div class="text-muted text-uppercase small">Last RSSI</div><div id="detail-rssi" class="fs-5">n/a</div></div>
+            <div class="col-md-3"><div class="text-muted text-uppercase small">Last SNR</div><div id="detail-snr" class="fs-5">n/a</div></div>
+            <div class="col-md-3"><div class="text-muted text-uppercase small">Noise Floor</div><div id="detail-noise" class="fs-5">n/a</div></div>
+            <div class="col-md-3"><div class="text-muted text-uppercase small">TX Queue</div><div id="detail-queue" class="fs-5">n/a</div></div>
+            <div class="col-md-3"><div class="text-muted text-uppercase small">RX Airtime</div><div id="detail-rx-airtime" class="fs-5">n/a</div></div>
+            <div class="col-md-3"><div class="text-muted text-uppercase small">Packets Received</div><div id="detail-recv" class="fs-5">n/a</div></div>
+            <div class="col-md-3"><div class="text-muted text-uppercase small">Packets Sent</div><div id="detail-sent" class="fs-5">n/a</div></div>
+            <div class="col-md-3"><div class="text-muted text-uppercase small">Receive Errors</div><div id="detail-errors" class="fs-5">n/a</div></div>
+            <div class="col-md-3"><div class="text-muted text-uppercase small">Flood TX / Direct TX</div><div id="detail-tx-breakdown" class="fs-5">n/a</div></div>
+            <div class="col-md-3"><div class="text-muted text-uppercase small">Flood RX / Direct RX</div><div id="detail-rx-breakdown" class="fs-5">n/a</div></div>
+            <div class="col-md-3"><div class="text-muted text-uppercase small">Direct / Flood Duplicates</div><div id="detail-dups" class="fs-5">n/a</div></div>
+            <div class="col-md-3"><div class="text-muted text-uppercase small">Full Events</div><div id="detail-full-events" class="fs-5">n/a</div></div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">Battery Percentage History</div>
+            <div class="card-body"><canvas id="battery-chart" height="120"></canvas></div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">Advert Clock Drift History</div>
+            <div class="card-body"><canvas id="drift-chart" height="120"></canvas></div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">Temperature History</div>
+            <div class="card-body"><canvas id="temperature-chart" height="120"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center gap-2">
+        <span>Recent Poll History (Telemetry Only)</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="toggle-poll-history" style="display: none;">
+            Show all
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Collected</th>
+                        <th>Battery</th>
+                        <th>Temperature</th>
+                        <th>Uptime</th>
+                        <th>Airtime</th>
+                        <th>Signal</th>
+                        <th>Poll Attempts</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+                <tbody id="detail-history-body">
+                    <tr><td colspan="8" class="text-center py-4 text-muted">Loading history...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .repeater-command-log {
+        min-height: 12rem;
+        max-height: 26rem;
+        overflow-y: auto;
+        padding: 0.85rem 1rem;
+        background: #111820;
+        color: #d8e2ec;
+        font: 0.86rem/1.55 SFMono-Regular, Consolas, "Liberation Mono", monospace;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+    .command-log-line { display: flex; gap: 0.75rem; }
+    .command-log-time { color: #8ca0b3; flex: 0 0 auto; }
+    .command-log-success { color: #75d69c; }
+    .command-log-warning { color: #ffd166; }
+    .command-log-error { color: #ff858f; }
+    .command-log-empty { color: #8ca0b3; }
+    [data-theme="dark"] .card,
+    [data-theme="dark"] .card-body {
+        background-color: #202a35;
+        color: #f1f5f9;
+    }
+    [data-theme="dark"] .card-header {
+        background-color: #2b3947;
+        border-color: #465769;
+        color: #f8fafc;
+    }
+    [data-theme="dark"] .table > :not(caption) > * > * {
+        background-color: #202a35;
+        border-color: #465769;
+        color: #eef4f8;
+    }
+    [data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) > * {
+        background-color: #293644;
+        color: #f4f7fa;
+    }
+    [data-theme="dark"] .table-hover > tbody > tr:hover > * {
+        background-color: #35475a !important;
+        color: #ffffff;
+    }
+    [data-theme="dark"] .table-dark > :not(caption) > * > * {
+        background-color: #14202b;
+        border-color: #465769;
+        color: #ffffff;
+    }
+    [data-theme="dark"] .text-muted { color: #bdc9d4 !important; }
+    [data-theme="dark"] a { color: #8ecbff; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const nodeKey = {{ node_key|tojson }};
+    let batteryChart;
+    let driftChart;
+    let temperatureChart;
+    let pollRequestPending = false;
+    let clockSyncRequestPending = false;
+    let pollHistoryExpanded = false;
+    let pollHistorySamples = [];
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>'"]/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+        })[character]);
+    }
+
+    function nodeKeysMatch(first, second) {
+        const left = String(first || '').trim().toLowerCase();
+        const right = String(second || '').trim().toLowerCase();
+        return Boolean(left && right && (left.startsWith(right) || right.startsWith(left)));
+    }
+
+    function setPollButton(state = 'idle') {
+        const button = document.getElementById('poll-device');
+        if (state === 'queued') {
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-clock"></i> Poll Queued';
+        } else if (state === 'polling') {
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Polling Now...';
+        } else if (state === 'busy') {
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-satellite-dish"></i> Poll Now';
+        } else {
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-satellite-dish"></i> Poll Now';
+        }
+    }
+
+    function setClockSyncButton(state = 'idle') {
+        const button = document.getElementById('clock-sync-device');
+        if (state === 'queued') {
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-clock"></i> Sync Queued';
+        } else if (state === 'syncing') {
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing Clock...';
+        } else if (state === 'busy') {
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-clock"></i> Clock Sync';
+        } else {
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-clock"></i> Clock Sync';
+        }
+    }
+
+    function showRefreshFeedback(message, level = 'info') {
+        const feedback = document.getElementById('detail-refresh-feedback');
+        feedback.className = `alert alert-${level} mb-3`;
+        feedback.textContent = message;
+        feedback.style.display = 'block';
+    }
+
+    async function loadMonitorStatus() {
+        const response = await fetch('/api/repeater-monitor/status');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const status = await response.json();
+        const el = document.getElementById('detail-monitor-status');
+        const requestedHere = nodeKeysMatch(status.requested_node_key, nodeKey);
+        const pollingHere = status.state === 'polling' && nodeKeysMatch(status.current_node_key, nodeKey);
+        const syncingHere = status.state === 'clock_sync' && nodeKeysMatch(status.current_node_key, nodeKey);
+        if (syncingHere) {
+            clockSyncRequestPending = true;
+            setClockSyncButton('syncing');
+            setPollButton('busy');
+            el.innerHTML = '<span class="text-warning"><i class="fas fa-spinner fa-spin me-1"></i>Synchronising this repeater clock now</span>';
+            return true;
+        }
+        if (status.state === 'clock_sync_queued' && requestedHere) {
+            clockSyncRequestPending = true;
+            setClockSyncButton('queued');
+            setPollButton('busy');
+            el.innerHTML = '<span class="text-warning"><i class="fas fa-clock me-1"></i>Clock Sync queued for this repeater</span>';
+            return true;
+        }
+        if (pollingHere) {
+            pollRequestPending = true;
+            setPollButton('polling');
+            setClockSyncButton('busy');
+            el.innerHTML = '<span class="text-primary"><i class="fas fa-spinner fa-spin me-1"></i>Polling this repeater now</span>';
+            return true;
+        }
+        if (status.state === 'refresh_queued' && requestedHere) {
+            pollRequestPending = true;
+            setPollButton('queued');
+            setClockSyncButton('busy');
+            el.innerHTML = '<span class="text-warning"><i class="fas fa-clock me-1"></i>Poll queued for this repeater</span>';
+            return true;
+        }
+        if (status.state === 'polling') {
+            const target = status.current_target || 'unknown target';
+            el.textContent = `Polling: ${target}`;
+            if (pollRequestPending) setPollButton('queued');
+            return pollRequestPending;
+        }
+        if (status.state === 'clock_sync') {
+            const target = status.current_target || 'unknown target';
+            el.textContent = `Clock Sync: ${target}`;
+            if (clockSyncRequestPending) setClockSyncButton('queued');
+            return clockSyncRequestPending;
+        }
+        if (status.state === 'clock_sync_queued') {
+            el.textContent = 'Clock Sync queued';
+            if (clockSyncRequestPending) setClockSyncButton('queued');
+            return clockSyncRequestPending;
+        }
+        if (status.state === 'refresh_queued') {
+            el.textContent = 'Refresh queued';
+            if (pollRequestPending) setPollButton('queued');
+            return pollRequestPending;
+        }
+        if (status.state === 'idle') {
+            el.textContent = 'Idle';
+            const wasPending = pollRequestPending;
+            // A completed manual poll retains requested_node_key. An unrelated
+            // scheduled poll may briefly report idle while this request waits.
+            if (!pollRequestPending || requestedHere) {
+                pollRequestPending = false;
+                setPollButton('idle');
+            }
+            const clockWasPending = clockSyncRequestPending;
+            if (!clockSyncRequestPending || requestedHere) {
+                clockSyncRequestPending = false;
+                setClockSyncButton('idle');
+            }
+            return wasPending || clockWasPending;
+        }
+        if (status.state === 'suspended') {
+            pollRequestPending = false;
+            setPollButton('idle');
+            el.textContent = 'Scheduled polling is suspended; Poll Now remains available';
+            return clockSyncRequestPending;
+        }
+        el.textContent = status.state || 'Unknown';
+        return pollRequestPending;
+    }
+
+    function formatDateTime(ts) {
+        const date = normalizeTimestamp(ts);
+        if (!date) return 'n/a';
+        return date.toLocaleString();
+    }
+
+    function normalizeTimestamp(ts) {
+        if (!ts) return null;
+        if (typeof ts === 'number') {
+            return new Date(ts * 1000);
+        }
+        const text = String(ts).trim();
+        if (!text) return null;
+        const numeric = Number(text);
+        if (!Number.isNaN(numeric)) {
+            return new Date(numeric * 1000);
+        }
+        const sqlMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(\.(\d+))?$/);
+        if (sqlMatch) {
+            const [, year, month, day, hour, minute, second, , fraction] = sqlMatch;
+            const milliseconds = fraction ? Number(fraction.slice(0, 3).padEnd(3, '0')) : 0;
+            return new Date(
+                Number(year),
+                Number(month) - 1,
+                Number(day),
+                Number(hour),
+                Number(minute),
+                Number(second),
+                milliseconds,
+            );
+        }
+        return new Date(text.replace(' ', 'T'));
+    }
+
+    function formatRelativeDayLabel(ts) {
+        const date = normalizeTimestamp(ts);
+        if (!date || Number.isNaN(date.getTime())) return 'n/a';
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        if (diffMs < 0) return '0 hours ago';
+        if (diffMs < 3600000) {
+            const diffMinutes = Math.max(1, Math.floor(diffMs / 60000));
+            return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
+        }
+        if (diffMs < 86400000) {
+            const diffHours = Math.floor(diffMs / 3600000);
+            return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+        }
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const diffDays = Math.round((startOfToday - startOfTarget) / 86400000);
+        if (diffDays === 1) return 'yesterday';
+        if (diffDays < 7) return `${diffDays} days ago`;
+        return formatDateTime(ts);
+    }
+
+    function formatDuration(seconds) {
+        if (seconds === null || seconds === undefined) return 'n/a';
+        const mins = Math.round(seconds / 60);
+        if (mins < 1) return `${Math.round(seconds)}s`;
+        if (mins < 60) return `${mins}m`;
+        const hours = Math.floor(mins / 60);
+        const rem = mins % 60;
+        return rem ? `${hours}h ${rem}m` : `${hours}h`;
+    }
+
+    function formatUptime(seconds) {
+        if (seconds === null || seconds === undefined) return 'n/a';
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        if (days > 0) return `${days}d ${hours}h`;
+        if (hours > 0) return `${hours}h ${mins}m`;
+        return `${mins}m`;
+    }
+
+    function formatBattery(mv, percent) {
+        if (mv === null || mv === undefined) return 'n/a';
+        if (Number(mv) === 0) return 'Battery Status Not Supported';
+        return `${mv} mV${percent === null || percent === undefined ? '' : ` (${percent}%)`}`;
+    }
+
+    function formatTemperature(value) {
+        return value === null || value === undefined ? 'Not published' : `${Number(value).toFixed(1)} °C`;
+    }
+
+    function formatClock(epochSeconds) {
+        if (epochSeconds === null || epochSeconds === undefined) return 'n/a';
+        return new Date(epochSeconds * 1000).toLocaleString();
+    }
+
+    function formatCount(value) {
+        return value === null || value === undefined ? 'n/a' : value.toLocaleString();
+    }
+
+    function formatSigned(value, suffix = '') {
+        if (value === null || value === undefined) return 'n/a';
+        if (typeof value === 'number' && !Number.isInteger(value)) {
+            return `${value.toFixed(1)}${suffix}`;
+        }
+        return `${value}${suffix}`;
+    }
+
+    function statusLabel(node) {
+        if (node.last_login_ok && node.last_status_ok && node.last_clock_ok) return 'Healthy';
+        if (node.last_login_ok && node.last_status_ok &&
+            (node.last_clock_drift_seconds === null || node.last_clock_drift_seconds === undefined)) {
+            return 'Clock Unavailable';
+        }
+        if (node.last_login_ok && node.last_status_ok) return 'Clock Drift';
+        return 'Needs Attention';
+    }
+
+    function renderChart(canvasId, label, series, color, yLabel, yOptions = {}) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        const darkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+        const chartText = darkMode ? '#dce6ef' : '#495057';
+        const chartGrid = darkMode ? 'rgba(180, 199, 216, 0.18)' : 'rgba(0, 0, 0, 0.1)';
+        return new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: series.map(point => point.label),
+                datasets: [{
+                    label,
+                    data: series.map(point => point.value),
+                    borderColor: color,
+                    backgroundColor: color + '22',
+                    tension: 0.24,
+                    fill: true,
+                    pointRadius: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: chartText } }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: chartText },
+                        grid: { color: chartGrid }
+                    },
+                    y: {
+                        ...yOptions,
+                        ticks: { color: chartText },
+                        grid: { color: chartGrid },
+                        title: {
+                            display: true,
+                            text: yLabel,
+                            color: chartText
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderCommandLog(lines) {
+        const log = document.getElementById('detail-command-log');
+        if (!lines || !lines.length) {
+            log.innerHTML = '<div class="command-log-empty">No command activity has been recorded yet.</div>';
+            return;
+        }
+        log.innerHTML = lines.map(line => {
+            const level = ['success', 'warning', 'error'].includes(line.level) ? line.level : 'info';
+            return `<div class="command-log-line command-log-${level}"><span class="command-log-time">[${escapeHtml(formatDateTime(line.logged_at))}]</span><span>${escapeHtml(line.message)}</span></div>`;
+        }).join('');
+        log.scrollTop = log.scrollHeight;
+    }
+
+    function renderPollHistory() {
+        const tbody = document.getElementById('detail-history-body');
+        const toggle = document.getElementById('toggle-poll-history');
+        const newestFirst = pollHistorySamples.slice().reverse();
+        const visibleSamples = pollHistoryExpanded ? newestFirst : newestFirst.slice(0, 6);
+        toggle.style.display = newestFirst.length > 6 ? '' : 'none';
+        toggle.textContent = pollHistoryExpanded
+            ? 'Show latest 6'
+            : `Show all (${newestFirst.length})`;
+
+        if (!visibleSamples.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No history is available yet.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = visibleSamples.map(sample => `
+            <tr>
+                <td>${formatDateTime(sample.collected_at)}</td>
+                <td>${formatBattery(sample.battery_mv, sample.battery_percent)}</td>
+                <td>${formatTemperature(sample.temperature_c)}</td>
+                <td>${formatUptime(sample.uptime_seconds)}</td>
+                <td>${formatUptime(sample.airtime_seconds)}</td>
+                <td>${sample.last_rssi === null || sample.last_rssi === undefined ? 'n/a' : `${sample.last_rssi} dBm / ${sample.last_snr === null || sample.last_snr === undefined ? 'n/a' : `${sample.last_snr.toFixed(1)} dB`}`}</td>
+                <td>${sample.login_attempts}</td>
+                <td>${sample.error_text || 'ok'}</td>
+            </tr>
+        `).join('');
+    }
+
+    async function loadDetail(updateCharts = true) {
+        const response = await fetch(`/api/repeater-monitor/node/${encodeURIComponent(nodeKey)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const node = data.node;
+        document.getElementById('detail-title').textContent = node.display_name;
+        document.getElementById('detail-subtitle').textContent = node.resolved_public_key || node.node_key;
+        document.getElementById('detail-last-success').textContent = formatRelativeDayLabel(node.last_success_at);
+        document.getElementById('detail-battery').textContent = formatBattery(node.last_battery_mv, node.last_battery_percent);
+        document.getElementById('detail-temperature').textContent = formatTemperature(node.last_temperature_c);
+        document.getElementById('detail-temperature-updated').textContent = node.last_temperature_updated_at
+            ? `Updated ${formatRelativeDayLabel(node.last_temperature_updated_at)}`
+            : '';
+        document.getElementById('detail-clock').textContent = formatClock(node.last_clock_epoch);
+        document.getElementById('detail-drift').textContent = node.last_clock_drift_seconds === null || node.last_clock_drift_seconds === undefined
+            ? 'n/a'
+            : `${node.last_clock_drift_seconds.toFixed(0)} s`;
+        document.getElementById('detail-uptime').textContent = formatUptime(node.last_uptime_seconds);
+        document.getElementById('detail-airtime').textContent = formatUptime(node.last_airtime_seconds);
+        document.getElementById('detail-status').textContent = statusLabel(node);
+        document.getElementById('detail-rssi').textContent = formatSigned(node.last_rssi, ' dBm');
+        document.getElementById('detail-snr').textContent = formatSigned(node.last_snr, ' dB');
+        document.getElementById('detail-noise').textContent = formatSigned(node.last_noise_floor, ' dBm');
+        document.getElementById('detail-queue').textContent = formatCount(node.last_tx_queue_len);
+        document.getElementById('detail-rx-airtime').textContent = formatUptime(node.last_rx_airtime_seconds);
+        document.getElementById('detail-recv').textContent = formatCount(node.last_nb_recv);
+        document.getElementById('detail-sent').textContent = formatCount(node.last_nb_sent);
+        document.getElementById('detail-errors').textContent = formatCount(node.last_recv_errors);
+        document.getElementById('detail-tx-breakdown').textContent = `${formatCount(node.last_sent_flood)} / ${formatCount(node.last_sent_direct)}`;
+        document.getElementById('detail-rx-breakdown').textContent = `${formatCount(node.last_recv_flood)} / ${formatCount(node.last_recv_direct)}`;
+        document.getElementById('detail-dups').textContent = `${formatCount(node.last_direct_dups)} / ${formatCount(node.last_flood_dups)}`;
+        document.getElementById('detail-full-events').textContent = formatCount(node.last_full_events);
+        renderCommandLog(data.command_log);
+
+        pollHistorySamples = data.samples || [];
+        renderPollHistory();
+
+        if (!updateCharts) return;
+        const batterySeries = data.battery_series.map(point => ({
+            label: new Date(point.x).toLocaleString(),
+            value: point.y,
+        }));
+        const driftSeries = data.clock_drift_series.map(point => ({
+            label: new Date(point.x).toLocaleString(),
+            value: point.y,
+        }));
+        const temperatureSeries = data.temperature_series.map(point => ({
+            label: new Date(point.x).toLocaleString(),
+            value: point.y,
+        }));
+        if (batteryChart) batteryChart.destroy();
+        if (driftChart) driftChart.destroy();
+        if (temperatureChart) temperatureChart.destroy();
+        batteryChart = renderChart(
+            'battery-chart',
+            'Battery (%)',
+            batterySeries,
+            '#1d6f8c',
+            'Percent',
+            {
+                beginAtZero: true,
+                min: 0,
+                max: 100,
+            }
+        );
+        driftChart = renderChart(
+            'drift-chart',
+            'Advert Clock Drift (seconds)',
+            driftSeries,
+            '#c06c2b',
+            'Seconds',
+            {
+                beginAtZero: true,
+                min: 0,
+            }
+        );
+        temperatureChart = renderChart(
+            'temperature-chart',
+            'Temperature (°C)',
+            temperatureSeries,
+            '#e8793e',
+            'Degrees Celsius'
+        );
+    }
+
+    async function triggerSingleDevicePoll() {
+        const button = document.getElementById('poll-device');
+        pollRequestPending = true;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Queuing...';
+        try {
+            const response = await fetch(`/api/repeater-monitor/refresh/${encodeURIComponent(nodeKey)}`, { method: 'POST' });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || data.error || `HTTP ${response.status}`);
+            }
+            setPollButton('queued');
+            showRefreshFeedback('Poll queued. This page will show each command and timeout as the bot works.', 'info');
+            await loadDetail(false);
+        } catch (error) {
+            pollRequestPending = false;
+            setPollButton('idle');
+            showRefreshFeedback(`Failed to queue device poll: ${error.message}`, 'danger');
+        }
+    }
+
+    async function triggerClockSync() {
+        clockSyncRequestPending = true;
+        setClockSyncButton('queued');
+        try {
+            const response = await fetch(`/api/repeater-monitor/clock-sync/${encodeURIComponent(nodeKey)}`, {
+                method: 'POST'
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || data.error || `HTTP ${response.status}`);
+            showRefreshFeedback(
+                'Clock Sync queued. The command log will show reboot, re-login, timestamped sync, immediate advert, and any timeouts.',
+                'info'
+            );
+            await loadDetail(false);
+        } catch (error) {
+            clockSyncRequestPending = false;
+            setClockSyncButton('idle');
+            showRefreshFeedback(`Failed to queue Clock Sync: ${error.message}`, 'danger');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        document.getElementById('poll-device').addEventListener('click', triggerSingleDevicePoll);
+        document.getElementById('clock-sync-device').addEventListener('click', triggerClockSync);
+        document.getElementById('toggle-poll-history').addEventListener('click', () => {
+            pollHistoryExpanded = !pollHistoryExpanded;
+            renderPollHistory();
+        });
+        try {
+            await loadDetail();
+            await loadMonitorStatus();
+        } catch (error) {
+            document.getElementById('detail-history-body').innerHTML =
+                `<tr><td colspan="9" class="text-center py-4 text-danger">Failed to load repeater detail: ${error.message}</td></tr>`;
+        }
+        setInterval(() => {
+            loadMonitorStatus()
+                .then(active => {
+                    if (active) loadDetail(false).catch(() => {});
+                })
+                .catch(() => {});
+        }, 3000);
+    });
+</script>
+{% endblock %}

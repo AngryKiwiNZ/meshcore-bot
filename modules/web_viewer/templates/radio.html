@@ -1,0 +1,822 @@
+{% extends "base.html" %}
+
+{% block title %}Radio Settings - MeshCore Bot{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="fas fa-broadcast-tower"></i> Radio Settings
+            </h1>
+            
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Total Channels</h5>
+                            <h2 id="total-channels">-</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                Available Slots
+                                <i class="fas fa-info-circle text-muted ms-1" id="available-slots-info" style="font-size: 0.8em; cursor: help; display: none;" data-bs-toggle="tooltip"></i>
+                            </h5>
+                            <h2 id="available-slots">-</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Channels with Feeds</h5>
+                            <h2 id="channels-with-feeds">-</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Empty Channels</h5>
+                            <h2 id="empty-channels">-</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Channel Management -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Channel Management</h5>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createChannelModal">
+                        <i class="fas fa-plus"></i> Create Channel
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover" id="channelsTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Index</th>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Feed Count</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="channelsTableBody">
+                                <tr>
+                                    <td colspan="6" class="text-center">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Channel Modal -->
+<div class="modal fade" id="createChannelModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Channel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createChannelForm">
+                    <div class="mb-3">
+                        <label class="form-label">Channel Name</label>
+                        <input type="text" class="form-control" id="channelName" name="channel_name" required placeholder="#channelname or channelname">
+                        <small class="form-text text-muted">
+                            <strong>Hashtag channel:</strong> Start with # (e.g., #emergency) - key auto-generated<br>
+                            <strong>Custom channel:</strong> No # prefix - you must provide a channel key
+                        </small>
+                    </div>
+                    <div class="mb-3" id="channelKeyGroup" style="display: none;">
+                        <label class="form-label">Channel Key (32 hex characters) <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="channelKey" name="channel_key" placeholder="00000000000000000000000000000000" pattern="[0-9a-fA-F]{32}" maxlength="32">
+                        <small class="form-text text-muted">Required for custom channels. Must be exactly 32 hexadecimal characters (16 bytes).</small>
+                    </div>
+                    <div class="mb-3">
+                        <div class="alert alert-info">
+                            <strong>Channel Index:</strong> <span id="autoChannelIndex">-</span>
+                            <br><small>The lowest available channel index will be automatically selected</small>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveChannelBtn">Create Channel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Channel Details Modal -->
+<div class="modal fade" id="channelDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Channel Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="channelDetailsContent">
+                Loading...
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class RadioManager {
+    constructor() {
+        this.channels = [];
+        this.maxChannels = 40; // Default, will be updated from API
+        this.initialize();
+    }
+    
+    async initialize() {
+        await this.loadChannels();
+        await this.loadStatistics();
+        this.setupEventHandlers();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(() => this.loadChannels(), 30000);
+        setInterval(() => this.loadStatistics(), 60000);
+    }
+    
+    async loadChannels() {
+        try {
+            const response = await fetch('/api/channels');
+            const data = await response.json();
+            // Filter out decode-only channels (they're for packet decoding, not radio management)
+            this.channels = (data.channels || []).filter(c => !c.decode_only);
+            this.renderChannels();
+            this.updateChannelIndexDisplay();
+        } catch (error) {
+            console.error('Error loading channels:', error);
+            this.showError('Failed to load channels: ' + error.message);
+        }
+    }
+    
+    async loadStatistics() {
+        try {
+            const response = await fetch('/api/channels/stats');
+            const data = await response.json();
+            
+            // Get max_channels from API (defaults to 40 if not provided)
+            this.maxChannels = data.max_channels || 40;
+            
+            // Calculate statistics
+            const totalChannels = this.channels.length;
+            const availableSlots = this.maxChannels - totalChannels;
+            const channelsWithFeeds = Object.keys(data.channel_feed_counts || {}).length;
+            
+            // Count channels that are configured but have no feeds
+            const feedCounts = data.channel_feed_counts || {};
+            let emptyChannels = 0;
+            for (const channel of this.channels) {
+                const channelName = channel.name || channel.channel_name || `Channel ${channel.channel_idx || channel.index}`;
+                const feedCount = feedCounts[channelName] || 0;
+                if (feedCount === 0) {
+                    emptyChannels++;
+                }
+            }
+            
+            document.getElementById('total-channels').textContent = totalChannels;
+            
+            // Update available slots display with info if limit is artificially set
+            const availableSlotsElement = document.getElementById('available-slots');
+            const availableSlotsInfo = document.getElementById('available-slots-info');
+            availableSlotsElement.textContent = availableSlots;
+            
+            // Show info icon and tooltip if max_channels is less than 40
+            if (this.maxChannels < 40) {
+                availableSlotsInfo.style.display = 'inline';
+                const tooltipText = `Limited by max_channels setting (${this.maxChannels} channels). To increase, set [Bot] max_channels in config.ini (max 40).`;
+                availableSlotsInfo.setAttribute('title', tooltipText);
+                availableSlotsInfo.setAttribute('data-bs-toggle', 'tooltip');
+                availableSlotsInfo.setAttribute('data-bs-placement', 'top');
+                // Initialize or update Bootstrap tooltip
+                const existingTooltip = bootstrap.Tooltip.getInstance(availableSlotsInfo);
+                if (existingTooltip) {
+                    existingTooltip.dispose();
+                }
+                new bootstrap.Tooltip(availableSlotsInfo, {
+                    title: tooltipText,
+                    placement: 'top'
+                });
+            } else {
+                availableSlotsInfo.style.display = 'none';
+                // Dispose tooltip if it exists
+                const existingTooltip = bootstrap.Tooltip.getInstance(availableSlotsInfo);
+                if (existingTooltip) {
+                    existingTooltip.dispose();
+                }
+            }
+            
+            document.getElementById('channels-with-feeds').textContent = channelsWithFeeds;
+            document.getElementById('empty-channels').textContent = emptyChannels;
+        } catch (error) {
+            console.error('Error loading statistics:', error);
+        }
+    }
+    
+    getLowestAvailableChannelIndex() {
+        const usedIndices = new Set(this.channels.map(c => c.channel_idx || c.index));
+        
+        // Find the lowest available index (0 to maxChannels-1)
+        for (let i = 0; i < this.maxChannels; i++) {
+            if (!usedIndices.has(i)) {
+                return i;
+            }
+        }
+        
+        // All channels are used
+        return null;
+    }
+    
+    updateChannelIndexDisplay() {
+        const display = document.getElementById('autoChannelIndex');
+        const lowestIndex = this.getLowestAvailableChannelIndex();
+        
+        if (lowestIndex !== null) {
+            display.textContent = `Channel ${lowestIndex}`;
+            display.className = 'text-success fw-bold';
+            display.title = '';
+        } else {
+            const limitText = this.maxChannels < 40 
+                ? `all ${this.maxChannels} channels in use (limited by bot.max_channels setting)`
+                : `all ${this.maxChannels} channels in use`;
+            display.textContent = `No available slots (${limitText})`;
+            display.className = 'text-danger fw-bold';
+            if (this.maxChannels < 40) {
+                display.title = `To increase the limit, set bot.max_channels in config.ini (max 40). Current limit: ${this.maxChannels}`;
+                display.style.cursor = 'help';
+            } else {
+                display.title = '';
+                display.style.cursor = 'default';
+            }
+        }
+    }
+    
+    renderChannels() {
+        const tbody = document.getElementById('channelsTableBody');
+        
+        if (this.channels.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center">No channels configured</td></tr>';
+            return;
+        }
+        
+        // Get feed counts per channel
+        fetch('/api/channels/stats').then(r => r.json()).then(stats => {
+            const feedCounts = stats.channel_feed_counts || {};
+            
+            tbody.innerHTML = this.channels.map(channel => {
+                const channelName = channel.name || channel.channel_name || `Channel ${channel.channel_idx || channel.index}`;
+                const feedCount = feedCounts[channelName] || 0;
+                const typeBadge = channel.type === 'hashtag' 
+                    ? '<span class="badge bg-primary">Hashtag</span>'
+                    : '<span class="badge bg-secondary">Custom</span>';
+                
+                return `
+                    <tr>
+                        <td>${channel.channel_idx || channel.index}</td>
+                        <td>${channelName}</td>
+                        <td>${typeBadge}</td>
+                        <td>${feedCount > 0 ? `<a href="/feeds?channel=${encodeURIComponent(channelName)}">${feedCount}</a>` : '0'}</td>
+                        <td><span class="badge bg-success">Active</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-info" onclick="radioManager.viewChannel(${channel.channel_idx || channel.index})" title="View Details">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="radioManager.deleteChannel(${channel.channel_idx || channel.index})" title="Delete" ${feedCount > 0 ? 'disabled' : ''}>
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        });
+    }
+    
+    setupEventHandlers() {
+        // Channel name input - update key preview and toggle key input
+        const channelNameInput = document.getElementById('channelName');
+        if (channelNameInput) {
+            channelNameInput.addEventListener('input', (e) => {
+                this.handleChannelNameChange(e.target.value).catch(err => {
+                    console.error('Error in handleChannelNameChange:', err);
+                });
+            });
+        }
+        
+        // Save channel
+        const saveBtn = document.getElementById('saveChannelBtn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => this.saveChannel());
+        }
+    }
+    
+    handleChannelNameChange(channelName) {
+        const isHashtag = channelName.trim().startsWith('#');
+        const keyGroup = document.getElementById('channelKeyGroup');
+        const keyInput = document.getElementById('channelKey');
+        
+        if (isHashtag) {
+            // Hashtag channel - hide key input
+            keyGroup.style.display = 'none';
+            keyInput.removeAttribute('required');
+        } else {
+            // Custom channel - show key input
+            keyGroup.style.display = 'block';
+            keyInput.setAttribute('required', 'required');
+        }
+    }
+    
+    async saveChannel() {
+        const form = document.getElementById('createChannelForm');
+        const formData = new FormData(form);
+        const saveBtn = document.getElementById('saveChannelBtn');
+        const originalBtnText = saveBtn.innerHTML;
+        
+        const channelName = formData.get('channel_name')?.trim();
+        const channelKey = formData.get('channel_key')?.trim();
+        
+        if (!channelName) {
+            this.showError('Channel name is required');
+            return;
+        }
+        
+        // Get the lowest available channel index
+        const channelIdx = this.getLowestAvailableChannelIndex();
+        if (channelIdx === null) {
+            const limitMsg = this.maxChannels < 40 
+                ? `No available channel slots. All ${this.maxChannels} channels are in use (limited by bot.max_channels setting). To increase, set bot.max_channels in config.ini (max 40).`
+                : `No available channel slots. All ${this.maxChannels} channels are in use.`;
+            this.showError(limitMsg);
+            return;
+        }
+        
+        const isHashtag = channelName.startsWith('#');
+        
+        // Validate custom channel has key
+        if (!isHashtag && !channelKey) {
+            this.showError('Channel key is required for custom channels (channels without # prefix)');
+            return;
+        }
+        
+        // Validate key format if provided
+        if (channelKey) {
+            if (channelKey.length !== 32) {
+                this.showError('Channel key must be exactly 32 hexadecimal characters');
+                return;
+            }
+            if (!/^[0-9a-fA-F]{32}$/.test(channelKey)) {
+                this.showError('Channel key must contain only hexadecimal characters (0-9, a-f, A-F)');
+                return;
+            }
+        }
+        
+        const data = {
+            name: channelName,
+            channel_idx: channelIdx
+        };
+        
+        // Add key only for custom channels
+        if (!isHashtag && channelKey) {
+            data.channel_key = channelKey;
+        }
+        
+        // Disable button and show loading state
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Creating...';
+        
+        try {
+            const response = await fetch('/api/channels', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                if (result.pending && result.operation_id) {
+                    // Operation is queued, poll for status
+                    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Processing...';
+                    await this.pollOperationStatus(result.operation_id, saveBtn, originalBtnText);
+                } else {
+                    // Immediate success
+                    this.showSuccess('Channel created successfully');
+                    bootstrap.Modal.getInstance(document.getElementById('createChannelModal')).hide();
+                    form.reset();
+                    this.handleChannelNameChange('');
+                    await this.loadChannels();
+                    await this.loadStatistics();
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = originalBtnText;
+                }
+            } else {
+                this.showError(result.error || 'Failed to create channel');
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalBtnText;
+            }
+        } catch (error) {
+            this.showError('Error creating channel: ' + error.message);
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalBtnText;
+        }
+    }
+    
+    async pollOperationStatus(operationId, button, originalButtonText, maxWait = 60) {
+        const startTime = Date.now();
+        const checkInterval = 1000; // Check every second
+        let attempts = 0;
+        const maxAttempts = Math.floor(maxWait * 1000 / checkInterval);
+        
+        while (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            attempts++;
+            
+            try {
+                const response = await fetch(`/api/channel-operations/${operationId}`);
+                const result = await response.json();
+                
+                if (result.status === 'completed') {
+                    this.showSuccess('Channel created successfully');
+                    bootstrap.Modal.getInstance(document.getElementById('createChannelModal')).hide();
+                    document.getElementById('createChannelForm').reset();
+                    this.handleChannelNameChange('');
+                    await this.loadChannels();
+                    await this.loadStatistics();
+                    button.disabled = false;
+                    button.innerHTML = originalButtonText;
+                    return;
+                } else if (result.status === 'failed') {
+                    this.showError(result.error_message || 'Channel operation failed');
+                    button.disabled = false;
+                    button.innerHTML = originalButtonText;
+                    return;
+                }
+                // If still pending, continue polling
+                
+                // Update button text with elapsed time
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                button.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span>Processing... (${elapsed}s)`;
+                
+            } catch (error) {
+                console.error('Error polling operation status:', error);
+                // Continue polling on error
+            }
+        }
+        
+        // Timeout - but continue polling in background and check if it completed
+        // Give it one more check after timeout message
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+        
+        try {
+            const response = await fetch(`/api/channel-operations/${operationId}`);
+            const result = await response.json();
+            
+            if (result.status === 'completed') {
+                // It completed! Show success and close dialog
+                this.showSuccess('Channel created successfully');
+                bootstrap.Modal.getInstance(document.getElementById('createChannelModal')).hide();
+                document.getElementById('createChannelForm').reset();
+                this.handleChannelNameChange('');
+                await this.loadChannels();
+                await this.loadStatistics();
+                button.disabled = false;
+                button.innerHTML = originalButtonText;
+                return;
+            } else if (result.status === 'failed') {
+                this.showError(result.error_message || 'Channel operation failed');
+                button.disabled = false;
+                button.innerHTML = originalButtonText;
+                return;
+            }
+        } catch (error) {
+            console.error('Error checking final status:', error);
+        }
+        
+        // Still pending after timeout - show info message but keep dialog open
+        // and continue checking in background
+        this.showError('Channel operation is taking longer than expected. The dialog will close automatically when complete.');
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Still processing...';
+        
+        // Continue polling in background (extend timeout to 120 seconds total)
+        const extendedMaxWait = 120;
+        const extendedMaxAttempts = Math.floor(extendedMaxWait * 1000 / checkInterval);
+        
+        while (attempts < extendedMaxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            attempts++;
+            
+            try {
+                const response = await fetch(`/api/channel-operations/${operationId}`);
+                const result = await response.json();
+                
+                if (result.status === 'completed') {
+                    this.showSuccess('Channel created successfully');
+                    bootstrap.Modal.getInstance(document.getElementById('createChannelModal')).hide();
+                    document.getElementById('createChannelForm').reset();
+                    this.handleChannelNameChange('');
+                    await this.loadChannels();
+                    await this.loadStatistics();
+                    button.disabled = false;
+                    button.innerHTML = originalButtonText;
+                    return;
+                } else if (result.status === 'failed') {
+                    this.showError(result.error_message || 'Channel operation failed');
+                    button.disabled = false;
+                    button.innerHTML = originalButtonText;
+                    return;
+                }
+                
+                // Update button text with elapsed time
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                button.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span>Still processing... (${elapsed}s)`;
+                
+            } catch (error) {
+                console.error('Error polling operation status:', error);
+                // Continue polling on error
+            }
+        }
+        
+        // Final timeout - really give up now
+        this.showError('Channel operation timed out. Please check the channel list to see if it was created.');
+        button.disabled = false;
+        button.innerHTML = originalButtonText;
+        await this.loadChannels();
+        await this.loadStatistics();
+    }
+    
+    async viewChannel(channelIdx) {
+        try {
+            // Get channel feeds
+            const feedsResponse = await fetch(`/api/channels/${channelIdx}/feeds`);
+            const feedsData = await feedsResponse.json();
+            
+            const channel = this.channels.find(c => (c.channel_idx || c.index) === channelIdx);
+            if (!channel) {
+                this.showError('Channel not found');
+                return;
+            }
+            
+            const channelKey = channel.key_hex || '';
+            const keyDisplay = channelKey 
+                ? `<code style="font-size: 0.9em; word-break: break-all;">${channelKey}</code> <button class="btn btn-sm btn-outline-secondary ms-2" onclick="navigator.clipboard.writeText('${channelKey}'); radioManager.showSuccess('Key copied to clipboard');"><i class="fas fa-copy"></i> Copy</button>`
+                : '<em>No key available</em>';
+            
+            const content = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Channel Information</h6>
+                        <p><strong>Name:</strong> ${channel.name || channel.channel_name}</p>
+                        <p><strong>Index:</strong> ${channel.channel_idx || channel.index}</p>
+                        <p><strong>Type:</strong> ${channel.type || 'Unknown'}</p>
+                        <p><strong>Key:</strong> ${keyDisplay}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Feed Subscriptions</h6>
+                        ${feedsData.feeds && feedsData.feeds.length > 0
+                            ? `<ul>${feedsData.feeds.map(f => `<li><a href="/feeds?id=${f.id}">${f.feed_name || f.feed_url}</a></li>`).join('')}</ul>`
+                            : '<p>No feed subscriptions</p>'}
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('channelDetailsContent').innerHTML = content;
+            const modal = new bootstrap.Modal(document.getElementById('channelDetailsModal'));
+            modal.show();
+        } catch (error) {
+            this.showError('Error loading channel details: ' + error.message);
+        }
+    }
+    
+    async deleteChannel(channelIdx) {
+        const channel = this.channels.find(c => (c.channel_idx || c.index) === channelIdx);
+        if (!channel) {
+            this.showError('Channel not found');
+            return;
+        }
+        
+        // Check if channel has feeds
+        try {
+            const feedsResponse = await fetch(`/api/channels/${channelIdx}/feeds`);
+            const feedsData = await feedsResponse.json();
+            
+            if (feedsData.feeds && feedsData.feeds.length > 0) {
+                if (!confirm(`This channel has ${feedsData.feeds.length} active feed subscription(s). Are you sure you want to delete it?`)) {
+                    return;
+                }
+            } else {
+                if (!confirm('Are you sure you want to delete this channel?')) {
+                    return;
+                }
+            }
+        } catch (error) {
+            // Continue with deletion even if feed check fails
+        }
+        
+        // Find the delete button and show loading state
+        const deleteButtons = document.querySelectorAll(`button[onclick*="deleteChannel(${channelIdx})"]`);
+        let deleteBtn = null;
+        if (deleteButtons.length > 0) {
+            deleteBtn = deleteButtons[0];
+            const originalHtml = deleteBtn.innerHTML;
+            deleteBtn.disabled = true;
+            deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+            
+            try {
+                const response = await fetch(`/api/channels/${channelIdx}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    if (result.pending && result.operation_id) {
+                        // Operation is queued, poll for status
+                        await this.pollDeleteOperationStatus(result.operation_id, deleteBtn, originalHtml);
+                    } else {
+                        // Immediate success
+                        this.showSuccess('Channel deleted successfully');
+                        await this.loadChannels();
+                        await this.loadStatistics();
+                        deleteBtn.disabled = false;
+                        deleteBtn.innerHTML = originalHtml;
+                    }
+                } else {
+                    this.showError(result.error || 'Failed to delete channel');
+                    deleteBtn.disabled = false;
+                    deleteBtn.innerHTML = originalHtml;
+                }
+            } catch (error) {
+                this.showError('Error deleting channel: ' + error.message);
+                if (deleteBtn) {
+                    deleteBtn.disabled = false;
+                    deleteBtn.innerHTML = originalHtml;
+                }
+            }
+        } else {
+            // Fallback if button not found
+            try {
+                const response = await fetch(`/api/channels/${channelIdx}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    if (result.pending && result.operation_id) {
+                        await this.pollDeleteOperationStatus(result.operation_id);
+                    } else {
+                        this.showSuccess('Channel deleted successfully');
+                        await this.loadChannels();
+                        await this.loadStatistics();
+                    }
+                } else {
+                    this.showError(result.error || 'Failed to delete channel');
+                }
+            } catch (error) {
+                this.showError('Error deleting channel: ' + error.message);
+            }
+        }
+    }
+    
+    async pollDeleteOperationStatus(operationId, button = null, originalButtonHtml = null, maxWait = 60) {
+        const startTime = Date.now();
+        const checkInterval = 1000; // Check every second
+        let attempts = 0;
+        const maxAttempts = Math.floor(maxWait * 1000 / checkInterval);
+        
+        while (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            attempts++;
+            
+            try {
+                const response = await fetch(`/api/channel-operations/${operationId}`);
+                const result = await response.json();
+                
+                if (result.status === 'completed') {
+                    this.showSuccess('Channel deleted successfully');
+                    await this.loadChannels();
+                    await this.loadStatistics();
+                    if (button) {
+                        button.disabled = false;
+                        button.innerHTML = originalButtonHtml;
+                    }
+                    return;
+                } else if (result.status === 'failed') {
+                    this.showError(result.error_message || 'Channel deletion failed');
+                    if (button) {
+                        button.disabled = false;
+                        button.innerHTML = originalButtonHtml;
+                    }
+                    return;
+                }
+                // If still pending, continue polling
+                
+            } catch (error) {
+                console.error('Error polling operation status:', error);
+                // Continue polling on error
+            }
+        }
+        
+        // Timeout
+        this.showError('Channel deletion is taking longer than expected. Please check the channel list to see if it was deleted.');
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = originalButtonHtml;
+        }
+        // Still refresh the channel list in case it was deleted
+        await this.loadChannels();
+        await this.loadStatistics();
+    }
+    
+    showError(message) {
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+        alert.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 300px;';
+        alert.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+        document.body.appendChild(alert);
+        setTimeout(() => alert.remove(), 5000);
+    }
+    
+    showSuccess(message) {
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-success alert-dismissible fade show position-fixed';
+        alert.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 300px;';
+        alert.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+        document.body.appendChild(alert);
+        setTimeout(() => alert.remove(), 3000);
+    }
+}
+
+// Initialize radio manager when page loads
+let radioManager;
+document.addEventListener('DOMContentLoaded', () => {
+    radioManager = new RadioManager();
+});
+</script>
+
+<style>
+/* Dark mode table styling with better contrast - matching contacts page */
+[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) > td {
+    background-color: #3a3a3a; /* Slightly lighter than even rows, but not too light */
+}
+
+[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(even) > td {
+    background-color: #2d2d2d; /* Darker gray (card-bg) */
+}
+
+[data-theme="dark"] .table-hover > tbody > tr:hover > td {
+    background-color: #404040 !important; /* Slightly lighter for hover, but maintains good contrast */
+}
+
+[data-theme="dark"] .table-dark {
+    background-color: var(--bg-tertiary);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .table-dark th {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .table td {
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+/* Ensure all text in table cells is light in dark mode */
+[data-theme="dark"] .table td,
+[data-theme="dark"] .table td * {
+    color: var(--text-color) !important;
+}
+
+/* Ensure small text is also light */
+[data-theme="dark"] .table td small {
+    color: var(--text-muted) !important;
+}
+</style>
+{% endblock %}
+

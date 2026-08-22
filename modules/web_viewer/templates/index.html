@@ -1,0 +1,864 @@
+{% extends "base.html" %}
+
+{% block title %}Bot Statistics - MeshCore Bot Data Viewer{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-chart-bar"></i> Bot Statistics
+        </h1>
+    </div>
+</div>
+
+<!-- System Health Overview -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-gradient-primary text-white">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-heartbeat me-2"></i>
+                    <h5 class="mb-0">Bot Health Status</h5>
+                </div>
+            </div>
+            <div class="card-body p-3">
+                <div class="row text-center health-status-card">
+                    <div class="col-md-3">
+                        <div class="d-flex align-items-center justify-content-center mb-2">
+                            <span class="status-indicator status-connected me-2"></span>
+                            <span id="system-status" class="fw-bold">Online</span>
+                        </div>
+                        <h3 id="connected-clients" class="text-primary mb-1">0</h3>
+                        <small class="text-muted text-uppercase">Connected Clients</small>
+                    </div>
+                    
+                    <div class="col-md-3 d-flex flex-column justify-content-center align-items-center">
+                        <div class="mb-2">
+                            <div id="database-status">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                        <small class="text-muted text-uppercase">Database Connection</small>
+                    </div>
+                    
+                    <div class="col-md-3 d-flex flex-column justify-content-center align-items-center">
+                        <h3 id="uptime" class="text-success mb-1">0s</h3>
+                        <small class="text-muted text-uppercase">System Uptime</small>
+                    </div>
+                    
+                    <div class="col-md-3 d-flex flex-column justify-content-center align-items-center">
+                        <h6 id="last-update" class="text-info mb-1">Loading...</h6>
+                        <small class="text-muted text-uppercase">Last Data Refresh</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Network Activity Overview -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-users"></i> Active Contacts
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <h4 id="contacts-24h" class="text-primary">0</h4>
+                        <small class="text-muted">24h</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 id="contacts-7d" class="text-info">0</h4>
+                        <small class="text-muted">7d</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 id="total-contacts" class="text-success">0</h4>
+                        <small class="text-muted">All</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-network-wired"></i> Network Health
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <h4 id="avg-hop-count" class="text-warning">0</h4>
+                        <small class="text-muted">Avg Hops</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 id="max-hop-count" class="text-danger">0</h4>
+                        <small class="text-muted">Max Hops</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 id="tracked-contacts" class="text-info">0</h4>
+                        <small class="text-muted">Tracked</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Network Performance - Two Columns -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-globe"></i> Geographic Coverage
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <h4 id="countries" class="text-primary">0</h4>
+                        <small class="text-muted">Countries</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 id="states" class="text-info">0</h4>
+                        <small class="text-muted">States</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 id="cities" class="text-success">0</h4>
+                        <small class="text-muted">Cities</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-hashtag"></i> Channel Statistics
+            </div>
+            <div class="card-body text-center">
+                <div class="row text-center">
+                    <div class="col-3">
+                        <h4 id="unique-channels-total" class="text-success">0</h4>
+                        <small class="text-muted">Total Channels</small>
+                    </div>
+                    <div class="col-3">
+                        <h4 id="bot-reply-rate-24h" class="text-warning">0%</h4>
+                        <small class="text-muted">24h Reply Rate</small>
+                    </div>
+                    <div class="col-3">
+                        <h4 id="bot-reply-rate-7d" class="text-warning">0%</h4>
+                        <small class="text-muted">7d Reply Rate</small>
+                    </div>
+                    <div class="col-3">
+                        <h4 id="bot-reply-rate-30d" class="text-warning">0%</h4>
+                        <small class="text-muted">30d Reply Rate</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Network Activity - Three Columns -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-users"></i> Bot User Statistics
+            </div>
+            <div class="card-body text-center">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h4 id="unique-senders-24h" class="text-info">0</h4>
+                        <small class="text-muted">24h Active</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 id="unique-users-total" class="text-primary">0</h4>
+                        <small class="text-muted">Total Users</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-comments"></i> Message Activity
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h4 id="messages-24h" class="text-info">0</h4>
+                        <small class="text-muted">24h Messages</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 id="total-messages" class="text-primary">0</h4>
+                        <small class="text-muted">Total Messages</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-terminal"></i> Command Activity
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h4 id="commands-24h" class="text-warning">0</h4>
+                        <small class="text-muted">24h Commands</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 id="total-commands" class="text-success">0</h4>
+                        <small class="text-muted">Total Commands</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Analytics Section - Four Columns -->
+<div class="row mb-4" id="analytics-section">
+    <div class="col-12 col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-trophy"></i> Most Popular Commands
+                </div>
+                <select id="top-commands-time-window" class="form-select form-select-sm" style="width: auto; font-size: 0.75rem;">
+                    <option value="24h">24h</option>
+                    <option value="7d">7d</option>
+                    <option value="30d">30d</option>
+                    <option value="all" selected>All</option>
+                </select>
+            </div>
+            <div class="card-body">
+                <div id="top-commands-list">
+                    <div class="loading">Loading command statistics...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-users"></i> Most Active Users
+                </div>
+                <select id="top-users-time-window" class="form-select form-select-sm" style="width: auto; font-size: 0.75rem;">
+                    <option value="24h">24h</option>
+                    <option value="7d">7d</option>
+                    <option value="30d">30d</option>
+                    <option value="all" selected>All</option>
+                </select>
+            </div>
+            <div class="card-body">
+                <div id="top-users-list">
+                    <div class="loading">Loading user statistics...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-route"></i> Longest Paths
+                </div>
+                <select id="longest-paths-time-window" class="form-select form-select-sm" style="width: auto; font-size: 0.75rem;">
+                    <option value="24h">24h</option>
+                    <option value="7d">7d</option>
+                    <option value="30d">30d</option>
+                    <option value="all" selected>All</option>
+                </select>
+            </div>
+            <div class="card-body">
+                <div id="longest-paths-list">
+                    <div class="loading">Loading path statistics...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-hashtag"></i> Top Channels
+                </div>
+                <select id="top-channels-time-window" class="form-select form-select-sm" style="width: auto; font-size: 0.75rem;">
+                    <option value="24h">24h</option>
+                    <option value="7d">7d</option>
+                    <option value="30d">30d</option>
+                    <option value="all" selected>All</option>
+                </select>
+            </div>
+            <div class="card-body">
+                <div id="top-channels-list">
+                    <div class="loading">Loading channel statistics...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class ModernDashboard {
+    constructor() {
+        this.botStartTime = null;
+        this.updateInterval = null;
+        this.uptimeInterval = null;
+        this.initializeDashboard();
+    }
+    
+    initializeDashboard() {
+        // Add a small delay to ensure DOM is ready
+        setTimeout(() => {
+            this.loadDashboardData();
+        }, 100);
+        this.startAutoRefresh();
+        this.updateUptime();
+        this.updateTimestamp();
+        this.setupTimeWindowSelector();
+    }
+    
+    setupTimeWindowSelector() {
+        // Setup selector for Most Active Users
+        const usersSelector = document.getElementById('top-users-time-window');
+        if (usersSelector) {
+            usersSelector.addEventListener('change', (e) => {
+                this.loadTopUsers(e.target.value);
+            });
+        }
+        
+        // Setup selector for Most Popular Commands
+        const commandsSelector = document.getElementById('top-commands-time-window');
+        if (commandsSelector) {
+            commandsSelector.addEventListener('change', (e) => {
+                this.loadTopCommands(e.target.value);
+            });
+        }
+        
+        // Setup selector for Longest Paths
+        const pathsSelector = document.getElementById('longest-paths-time-window');
+        if (pathsSelector) {
+            pathsSelector.addEventListener('change', (e) => {
+                this.loadLongestPaths(e.target.value);
+            });
+        }
+        
+        // Setup selector for Top Channels
+        const channelsSelector = document.getElementById('top-channels-time-window');
+        if (channelsSelector) {
+            channelsSelector.addEventListener('change', (e) => {
+                this.loadTopChannels(e.target.value);
+            });
+        }
+    }
+    
+    async loadDashboardData() {
+        try {
+            console.log('Loading dashboard data...');
+            
+            // Load system health
+            const healthResponse = await fetch('/api/health');
+            const healthData = await healthResponse.json();
+            console.log('Health data:', healthData);
+            
+            document.getElementById('connected-clients').textContent = healthData.connected_clients || 0;
+            
+            // Store bot uptime for display (null when bot not running / no start time in DB)
+            const rawUptime = healthData.bot_uptime;
+            this.botStartTime = (rawUptime != null && rawUptime > 0) ? rawUptime : null;
+            // Update uptime display and restart live counter with fresh data
+            this.updateUptime();
+            this.startLiveUptime();
+            
+            // Load comprehensive statistics
+            const statsResponse = await fetch('/api/stats');
+            const statsData = await statsResponse.json();
+            console.log('Stats data:', statsData);
+            
+            if (statsData.error) {
+                this.showError('Failed to load statistics: ' + statsData.error);
+                return;
+            }
+            
+            // Update all metrics
+            this.updateMetrics(statsData);
+            
+            // Load analytics with default time windows
+            const usersTimeWindow = document.getElementById('top-users-time-window')?.value || 'all';
+            const commandsTimeWindow = document.getElementById('top-commands-time-window')?.value || 'all';
+            const pathsTimeWindow = document.getElementById('longest-paths-time-window')?.value || 'all';
+            const channelsTimeWindow = document.getElementById('top-channels-time-window')?.value || 'all';
+            
+            this.loadTopUsers(usersTimeWindow);
+            this.loadTopCommands(commandsTimeWindow);
+            this.loadLongestPaths(pathsTimeWindow);
+            this.loadTopChannels(channelsTimeWindow);
+            
+            // Update database status
+            this.updateDatabaseStatus('Connected', 'success');
+            
+        } catch (error) {
+            console.error('Error loading dashboard data:', error);
+            this.showError('Failed to load dashboard data: ' + error.message);
+            this.updateDatabaseStatus('Error', 'danger');
+        }
+    }
+    
+    updateMetrics(data) {
+        console.log('Updating metrics with data:', data);
+        
+        // Test with a simple update first
+        const testElement = document.getElementById('connected-clients');
+        if (testElement) {
+            testElement.textContent = data.connected_clients || 0;
+            console.log('Updated connected-clients to:', data.connected_clients);
+        } else {
+            console.error('Element connected-clients not found!');
+        }
+        
+        // Update all metrics with error checking
+        this.updateElement('total-contacts', data.total_contacts);
+        this.updateElement('contacts-24h', data.contacts_24h);
+        this.updateElement('contacts-7d', data.contacts_7d);
+        this.updateElement('tracked-contacts', data.tracked_contacts);
+        
+        this.updateElement('avg-hop-count', data.avg_hop_count);
+        this.updateElement('max-hop-count', data.max_hop_count);
+        
+        this.updateElement('countries', data.countries);
+        this.updateElement('states', data.states);
+        this.updateElement('cities', data.cities);
+        
+        this.updateElement('unique-device-types', data.unique_device_types);
+        this.updateElement('unique-roles', data.unique_roles);
+        
+        this.updateElement('active-cache-entries', data.active_cache_entries);
+        
+        this.updateElement('total-messages', data.total_messages);
+        this.updateElement('messages-24h', data.messages_24h);
+        this.updateElement('total-commands', data.total_commands);
+        this.updateElement('commands-24h', data.commands_24h);
+        
+        // Additional statistics
+        this.updateElement('unique-users-total', data.unique_users_total);
+        this.updateElement('unique-senders-24h', data.unique_senders_24h);
+        this.updateElement('unique-channels-total', data.unique_channels_total);
+        this.updateElement('bot-reply-rate-24h', data.bot_reply_rate_24h !== undefined ? `${data.bot_reply_rate_24h}%` : '0%');
+        this.updateElement('bot-reply-rate-7d', data.bot_reply_rate_7d !== undefined ? `${data.bot_reply_rate_7d}%` : '0%');
+        this.updateElement('bot-reply-rate-30d', data.bot_reply_rate_30d !== undefined ? `${data.bot_reply_rate_30d}%` : '0%');
+        
+        // Analytics are loaded separately with time window selectors
+    }
+    
+    updateElement(elementId, value) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.textContent = value || 0;
+        } else {
+            console.error(`Element ${elementId} not found!`);
+        }
+    }
+    
+    async loadTopCommands(timeWindow = 'all') {
+        try {
+            const response = await fetch(`/api/stats?top_commands_window=${timeWindow}`);
+            const data = await response.json();
+            
+            if (data.error) {
+                console.error('Error loading top commands:', data.error);
+                return;
+            }
+            
+            if (data.top_commands && data.top_commands.length > 0) {
+                this.updateTopCommands(data.top_commands);
+            } else {
+                const container = document.getElementById('top-commands-list');
+                container.innerHTML = '<div class="text-muted text-center">No commands found</div>';
+            }
+        } catch (error) {
+            console.error('Error loading top commands:', error);
+        }
+    }
+    
+    updateTopCommands(commands) {
+        const container = document.getElementById('top-commands-list');
+        container.innerHTML = commands.map((cmd, index) => `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-primary me-2">${index + 1}</span>
+                    <span class="fw-bold">${cmd.command}</span>
+                </div>
+                <span class="badge bg-secondary">${cmd.count} uses</span>
+            </div>
+        `).join('');
+    }
+    
+    async loadTopUsers(timeWindow = 'all') {
+        try {
+            const response = await fetch(`/api/stats?top_users_window=${timeWindow}`);
+            const data = await response.json();
+            
+            if (data.error) {
+                console.error('Error loading top users:', data.error);
+                return;
+            }
+            
+            if (data.top_users && data.top_users.length > 0) {
+                this.updateTopUsers(data.top_users);
+            } else {
+                const container = document.getElementById('top-users-list');
+                container.innerHTML = '<div class="text-muted text-center">No users found</div>';
+            }
+        } catch (error) {
+            console.error('Error loading top users:', error);
+        }
+    }
+    
+    updateTopUsers(users) {
+        const container = document.getElementById('top-users-list');
+        container.innerHTML = users.map((user, index) => `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-success me-2">${index + 1}</span>
+                    <span class="fw-bold text-truncate" style="max-width: 200px;" title="${user.user}">${user.user}</span>
+                </div>
+                <span class="badge bg-info">${user.count} messages</span>
+            </div>
+        `).join('');
+    }
+    
+    async loadLongestPaths(timeWindow = 'all') {
+        try {
+            const response = await fetch(`/api/stats?top_paths_window=${timeWindow}`);
+            const data = await response.json();
+            
+            if (data.error) {
+                console.error('Error loading longest paths:', data.error);
+                return;
+            }
+            
+            if (data.top_paths && data.top_paths.length > 0) {
+                this.updateLongestPaths(data.top_paths);
+            } else {
+                const container = document.getElementById('longest-paths-list');
+                container.innerHTML = '<div class="text-muted text-center">No paths found</div>';
+            }
+        } catch (error) {
+            console.error('Error loading longest paths:', error);
+        }
+    }
+    
+    updateLongestPaths(paths) {
+        const container = document.getElementById('longest-paths-list');
+        container.innerHTML = paths.map((path, index) => `
+            <div class="mb-3 p-2 border rounded">
+                <div class="d-flex align-items-center mb-2">
+                    <span class="badge bg-warning me-2">${index + 1}</span>
+                    <span class="fw-bold text-truncate" style="max-width: 150px;" title="${path.user}">${path.user}</span>
+                    <span class="badge bg-danger ms-2">${path.path_length} hops</span>
+                </div>
+                <div class="small text-muted mb-1">
+                    <code class="text-break" style="word-break: break-all; font-size: 0.75rem;">${path.path_string}</code>
+                </div>
+                <div class="small text-muted">
+                    ${new Date(path.timestamp * 1000).toLocaleString()}
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    async loadTopChannels(timeWindow = 'all') {
+        try {
+            const response = await fetch(`/api/stats?top_channels_window=${timeWindow}`);
+            const data = await response.json();
+            
+            if (data.error) {
+                console.error('Error loading top channels:', data.error);
+                return;
+            }
+            
+            if (data.top_channels && data.top_channels.length > 0) {
+                this.updateTopChannels(data.top_channels);
+            } else {
+                const container = document.getElementById('top-channels-list');
+                container.innerHTML = '<div class="text-muted text-center">No channels found</div>';
+            }
+        } catch (error) {
+            console.error('Error loading top channels:', error);
+        }
+    }
+    
+    updateTopChannels(channels) {
+        const container = document.getElementById('top-channels-list');
+        container.innerHTML = channels.map((channel, index) => `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-primary me-2">${index + 1}</span>
+                    <span class="fw-bold text-truncate" style="max-width: 200px;" title="${channel.channel}">${channel.channel}</span>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-secondary me-1">${channel.messages} msgs</span>
+                    <span class="badge bg-info">${channel.users} users</span>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    updateDatabaseStatus(status, type) {
+        const statusElement = document.getElementById('database-status');
+        statusElement.innerHTML = `
+            <div class="d-flex align-items-center justify-content-center mb-2">
+                <span class="status-indicator status-${type} me-2"></span>
+                <span>${status}</span>
+            </div>
+        `;
+    }
+    
+    updateUptime() {
+        const uptimeElement = document.getElementById('uptime');
+        if (!uptimeElement) return;
+        if (this.botStartTime != null && this.botStartTime > 0) {
+            this.formatUptime(this.botStartTime);
+        } else {
+            // Bot not running or no start time in DB (e.g. viewer run standalone)
+            uptimeElement.textContent = 'Bot Down?';
+        }
+    }
+    
+    formatUptime(uptimeSeconds) {
+        const uptimeElement = document.getElementById('uptime');
+        const totalMinutes = Math.floor(uptimeSeconds / 60);
+        const totalHours = Math.floor(uptimeSeconds / 3600);
+        const totalDays = Math.floor(uptimeSeconds / 86400);
+        const months = Math.floor(totalDays / 30);
+        const days = totalDays % 30;
+        const hours = Math.floor((uptimeSeconds % 86400) / 3600);
+        const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+        const seconds = Math.floor(uptimeSeconds % 60);
+
+        const parts = [];
+        if (months > 0) parts.push(`${months}mo`);
+        if (days > 0) parts.push(`${days}d`);
+        if (hours > 0) parts.push(`${hours}h`);
+        if (minutes > 0) parts.push(`${minutes}m`);
+        if (parts.length === 0 || totalHours < 1) {
+            if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+        }
+        uptimeElement.textContent = parts.length > 0 ? parts.join(' ') : '0s';
+    }
+    
+    startLiveUptime() {
+        // Clear any existing uptime interval
+        if (this.uptimeInterval) {
+            clearInterval(this.uptimeInterval);
+            this.uptimeInterval = null;
+        }
+        
+        // Only run live counter when we have a valid bot uptime (bot is running)
+        if (this.botStartTime != null && this.botStartTime > 0) {
+            this.uptimeInterval = setInterval(() => {
+                if (this.botStartTime != null) {
+                    this.botStartTime += 1;
+                    this.formatUptime(this.botStartTime);
+                }
+            }, 1000);
+        }
+    }
+    
+    updateTimestamp() {
+        const now = new Date();
+        const timestamp = now.toLocaleTimeString();
+        document.getElementById('last-update').textContent = timestamp;
+    }
+    
+    startAutoRefresh() {
+        this.updateInterval = setInterval(() => {
+            this.loadDashboardData();
+            this.updateTimestamp();
+        }, 30000); // Refresh every 30 seconds
+    }
+    
+    destroy() {
+        // Clean up intervals when dashboard is destroyed
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+        }
+        if (this.uptimeInterval) {
+            clearInterval(this.uptimeInterval);
+        }
+    }
+    
+    showError(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger alert-dismissible fade show';
+        errorDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        // Insert at the top of the content
+        const content = document.querySelector('.container-fluid');
+        if (content) {
+            content.insertBefore(errorDiv, content.firstChild);
+            
+            // Auto-remove after 10 seconds
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.parentNode.removeChild(errorDiv);
+                }
+            }, 10000);
+        }
+    }
+}
+
+// Initialize dashboard when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, initializing dashboard...');
+    window.dashboard = new ModernDashboard();
+});
+
+// Clean up when page is unloaded
+window.addEventListener('beforeunload', () => {
+    if (window.dashboard) {
+        window.dashboard.destroy();
+    }
+});
+</script>
+
+<style>
+/* Status indicators moved to enhanced section below */
+
+.loading {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px var(--shadow-color);
+}
+
+.metric-value {
+    font-weight: 700;
+    font-size: 1.5rem;
+}
+
+.metric-label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Analytics section uses Bootstrap responsive classes */
+
+/* Health status card styling */
+.health-status-card .col-md-3 {
+    border-right: 1px solid var(--border-color);
+    padding: 0.75rem 0.5rem;
+    position: relative;
+}
+
+.health-status-card .col-md-3:last-child {
+    border-right: none;
+}
+
+.health-status-card .col-md-3:first-child {
+    padding-left: 0;
+}
+
+.health-status-card .col-md-3:last-child {
+    padding-right: 0;
+}
+
+/* Enhanced card styling */
+.card.shadow-sm {
+    border: none;
+    border-radius: 12px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card.shadow-sm:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px var(--shadow-color) !important;
+}
+
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    border: none;
+}
+
+.card-header.bg-gradient-primary {
+    border-radius: 12px 12px 0 0;
+    padding: 0.75rem 1.25rem;
+}
+
+/* Status indicator enhancements */
+.status-indicator {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
+    animation: pulse 2s infinite;
+}
+
+.status-connected { 
+    background-color: #28a745; 
+}
+
+.status-disconnected { 
+    background-color: #dc3545; 
+}
+
+.status-warning { 
+    background-color: #ffc107; 
+}
+
+.status-success { 
+    background-color: #28a745; 
+}
+
+.status-danger { 
+    background-color: #dc3545; 
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); }
+    70% { box-shadow: 0 0 0 6px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+
+[data-theme="dark"] .status-indicator {
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.4);
+    animation: pulse-dark 2s infinite;
+}
+
+@keyframes pulse-dark {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.6); }
+    70% { box-shadow: 0 0 0 6px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+</style>
+{% endblock %}

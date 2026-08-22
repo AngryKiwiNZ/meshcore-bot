@@ -1,0 +1,42 @@
+[Unit]
+Description=MeshCore Bot - Mesh Network Bot Service
+Documentation=https://github.com/your-repo/meshcore-bot
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=meshcore
+Group=meshcore
+WorkingDirectory=/opt/meshcore-bot
+ExecStart=/opt/meshcore-bot/venv/bin/python /opt/meshcore-bot/meshcore_bot.py
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=meshcore-bot
+
+# Environment variables
+Environment=PYTHONPATH=/opt/meshcore-bot
+Environment=PYTHONUNBUFFERED=1
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/meshcore-bot
+ReadWritePaths=/var/log/meshcore-bot
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=512M
+CPUQuota=50%
+
+# Restart policy
+StartLimitInterval=60
+StartLimitBurst=3
+
+[Install]
+WantedBy=multi-user.target

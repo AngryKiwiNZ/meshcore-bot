@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Games - MeshCore Bot{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1><i class="fas fa-gamepad"></i> DM Games</h1>
+  <span class="badge bg-success">DM only</span>
+</div>
+<div class="alert alert-info">
+  Players send <code>games</code> by DM to see the menu. Active games are stored in
+  SQLite, survive restarts, and expire after <span id="expiry">7</span> inactive days.
+  Existing bot commands continue to work during a game.
+</div>
+
+<div class="card mb-4">
+  <div class="card-header">Available games</div>
+  <div class="card-body">
+    <div id="switches" class="row g-3"><div class="text-muted">Loading…</div></div>
+    <button class="btn btn-primary mt-3" onclick="saveSettings()">Save game availability</button>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Active sessions</span>
+    <button class="btn btn-sm btn-outline-secondary" onclick="loadGames()">Refresh</button>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead><tr><th>Player</th><th>Game</th><th>Stage</th><th>Last move</th><th></th></tr></thead>
+      <tbody id="sessions"><tr><td colspan="5" class="text-muted">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Leaderboards</div>
+  <div id="leaderboards" class="card-body"><div class="text-muted">Loading…</div></div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+let gameData = {};
+const esc = value => String(value ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const when = value => value ? new Date(Number(value) * 1000).toLocaleString() : 'unknown';
+
+async function loadGames() {
+  const response = await fetch('/api/games/status');
+  if (!response.ok) throw new Error(`Unable to load games (${response.status})`);
+  gameData = await response.json();
+  expiry.textContent = gameData.session_expiry_days;
+  switches.innerHTML = Object.entries(gameData.games).map(([key, game]) => `
+    <div class="col-md-4"><div class="form-check form-switch">
+      <input class="form-check-input game-switch" type="checkbox"
+        id="game-${esc(key)}" data-game="${esc(key)}" ${game.enabled ? 'checked' : ''}>
+      <label class="form-check-label" for="game-${esc(key)}">${esc(game.name)}</label>
+    </div></div>`).join('');
+  sessions.innerHTML = gameData.sessions.length ? gameData.sessions.map(item => `
+    <tr><td>${esc(item.player_name)}</td><td>${esc(gameData.games[item.game_key]?.name || item.game_key)}</td>
+      <td>${esc(item.phase)}</td><td>${esc(when(item.updated_at))}</td>
+      <td><button class="btn btn-sm btn-outline-danger"
+        onclick='endSession(${JSON.stringify(item.public_key)})'>End</button></td></tr>`).join('')
+    : '<tr><td colspan="5" class="text-muted">No active game sessions.</td></tr>';
+  leaderboards.innerHTML = Object.entries(gameData.games).map(([key, game]) => {
+    const rows = gameData.leaderboards[key] || [];
+    const score = row => key === 'lemonade'
+      ? `$${Number(row.score).toFixed(2)}` : `${Number(row.score).toFixed(0)}${game.score_unit}`;
+    return `<div class="mb-4"><div class="d-flex justify-content-between">
+      <h5>${esc(game.name)}</h5><button class="btn btn-sm btn-outline-danger"
+        onclick='clearScores(${JSON.stringify(key)})'>Clear scores</button></div>
+      ${rows.length ? `<ol>${rows.map(row =>
+        `<li><strong>${esc(row.player_name)}</strong> — ${esc(score(row))}
+        <span class="text-muted small">${esc(row.summary)}</span></li>`).join('')}</ol>`
+        : '<div class="text-muted">No completed scores yet.</div>'}</div>`;
+  }).join('');
+}
+
+async function saveSettings() {
+  const games = {};
+  document.querySelectorAll('.game-switch').forEach(input => games[input.dataset.game] = input.checked);
+  const response = await fetch('/api/games/settings', {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({games})
+  });
+  const data = await response.json();
+  if (!response.ok) return alert(data.error || 'Save failed');
+  await loadGames();
+}
+
+async function endSession(publicKey) {
+  if (!confirm('End this player’s active game?')) return;
+  const response = await fetch(`/api/games/sessions/${encodeURIComponent(publicKey)}`, {method:'DELETE'});
+  if (!response.ok) return alert('Unable to end session');
+  await loadGames();
+}
+
+async function clearScores(gameKey) {
+  if (!confirm('Permanently clear this leaderboard?')) return;
+  const response = await fetch(`/api/games/scores/${encodeURIComponent(gameKey)}`, {method:'DELETE'});
+  if (!response.ok) return alert('Unable to clear scores');
+  await loadGames();
+}
+
+loadGames().catch(error => {
+  switches.innerHTML = `<div class="alert alert-danger">${esc(error.message)}</div>`;
+});
+</script>
+{% endblock %}

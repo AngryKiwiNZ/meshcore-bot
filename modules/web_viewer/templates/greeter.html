@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+
+{% block title %}Greeter - MeshCore Bot Data Viewer{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-hand-sparkles"></i> Greeter Management
+        </h1>
+    </div>
+</div>
+
+<!-- Rollout Status -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-clock"></i> Onboarding Period Status
+            </div>
+            <div class="card-body">
+                <div id="rollout-status">
+                    <div class="loading">Loading rollout status...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Greeter Settings -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-cog"></i> Current Settings
+            </div>
+            <div class="card-body">
+                <div id="greeter-settings">
+                    <div class="loading">Loading settings...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-comment"></i> Sample Greeting
+            </div>
+            <div class="card-body">
+                <div id="sample-greeting">
+                    <div class="loading">Loading sample greeting...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Greeted Users -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-users"></i> Greeted Users</span>
+                <span class="badge bg-primary" id="total-greeted-badge">0</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" class="form-control" id="greeted-users-search" 
+                               placeholder="Search by username, channel, date, or last seen...">
+                        <button class="btn btn-outline-secondary" type="button" id="clear-search-btn">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                    </div>
+                    <small class="text-muted" id="search-results-count"></small>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Username</th>
+                                <th>Channel</th>
+                                <th>Greeted At</th>
+                                <th>Last Seen</th>
+                                <th>Rollout Marked</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="greeted-users-table">
+                            <tr>
+                                <td colspan="5" class="text-center">
+                                    <div class="loading">Loading greeted users...</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class GreeterManager {
+    constructor() {
+        this.greeterData = null;
+        this.allUsers = [];  // Store all users for filtering
+        this.filteredUsers = [];  // Store filtered users
+        this.initializeGreeter();
+    }
+    
+    async initializeGreeter() {
+        await this.loadGreeterData();
+        this.setupEventHandlers();
+        this.renderRolloutStatus();
+        this.renderSettings();
+        this.renderSampleGreeting();
+        this.renderGreetedUsers();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            const searchInput = document.getElementById('greeted-users-search');
+            const currentSearch = searchInput ? searchInput.value : '';
+            
+            this.loadGreeterData().then(() => {
+                this.renderRolloutStatus();
+                this.renderSettings();
+                this.renderSampleGreeting();
+                this.renderGreetedUsers();
+                // Reapply search filter if one was active
+                if (currentSearch) {
+                    this.filterUsers(currentSearch);
+                }
+            });
+        }, 30000);
+    }
+    
+    async loadGreeterData() {
+        try {
+            const response = await fetch('/api/greeter');
+            const data = await response.json();
+            
+            if (data.error) {
+                this.showError('Failed to load greeter data: ' + data.error);
+                return;
+            }
+            
+            this.greeterData = data;
+            
+        } catch (error) {
+            console.error('Error loading greeter data:', error);
+            this.showError('Failed to load greeter data: ' + error.message);
+        }
+    }
+    
+    setupEventHandlers() {
+        // End rollout button handler will be set up in renderRolloutStatus
+        
+        // Search box handler
+        const searchInput = document.getElementById('greeted-users-search');
+        const clearBtn = document.getElementById('clear-search-btn');
+        
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.filterUsers(e.target.value);
+            });
+        }
+        
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                this.filterUsers('');
+            });
+        }
+    }
+    
+    renderRolloutStatus() {
+        const statusDiv = document.getElementById('rollout-status');
+        
+        if (!this.greeterData) {
+            statusDiv.innerHTML = '<div class="loading">Loading...</div>';
+            return;
+        }
+        
+        if (!this.greeterData.enabled) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> Greeter is currently disabled.
+                </div>
+            `;
+            return;
+        }
+        
+        if (this.greeterData.rollout_active) {
+            const timeRemaining = this.greeterData.time_remaining;
+            const timeStr = this.formatTimeRemaining(timeRemaining);
+            const endDate = new Date(this.greeterData.rollout_data.end_date);
+            
+            statusDiv.innerHTML = `
+                <div class="alert alert-info">
+                    <h5><i class="fas fa-hourglass-half"></i> Onboarding Period Active</h5>
+                    <p class="mb-2"><strong>Time Remaining:</strong> <span class="badge bg-primary" style="font-size: 1.1em;">${timeStr}</span></p>
+                    <p class="mb-2"><strong>Started:</strong> ${new Date(this.greeterData.rollout_data.started_at).toLocaleString()}</p>
+                    <p class="mb-2"><strong>Ends:</strong> ${endDate.toLocaleString()}</p>
+                    <p class="mb-0"><strong>Duration:</strong> ${this.greeterData.rollout_data.days} days</p>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-danger" id="end-rollout-btn">
+                        <i class="fas fa-stop-circle"></i> End Onboarding Period
+                    </button>
+                </div>
+            `;
+            
+            // Setup end rollout button
+            document.getElementById('end-rollout-btn').addEventListener('click', () => {
+                this.endRollout();
+            });
+        } else {
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i> No active onboarding period. New users will be greeted immediately.
+                </div>
+            `;
+        }
+    }
+    
+    renderSettings() {
+        const settingsDiv = document.getElementById('greeter-settings');
+        
+        if (!this.greeterData) {
+            settingsDiv.innerHTML = '<div class="loading">Loading...</div>';
+            return;
+        }
+        
+        const settings = this.greeterData.settings;
+        settingsDiv.innerHTML = `
+            <ul class="list-unstyled">
+                <li><strong>Enabled:</strong> <span class="badge bg-${settings.enabled ? 'success' : 'secondary'}">${settings.enabled ? 'Yes' : 'No'}</span></li>
+                <li><strong>Rollout Days:</strong> ${settings.rollout_days}</li>
+                <li><strong>Per-Channel Greetings:</strong> <span class="badge bg-${settings.per_channel_greetings ? 'info' : 'secondary'}">${settings.per_channel_greetings ? 'Yes' : 'No'}</span></li>
+                <li><strong>Include Mesh Info:</strong> <span class="badge bg-${settings.include_mesh_info ? 'info' : 'secondary'}">${settings.include_mesh_info ? 'Yes' : 'No'}</span></li>
+            </ul>
+        `;
+    }
+    
+    renderSampleGreeting() {
+        const greetingDiv = document.getElementById('sample-greeting');
+        
+        if (!this.greeterData) {
+            greetingDiv.innerHTML = '<div class="loading">Loading...</div>';
+            return;
+        }
+        
+        greetingDiv.innerHTML = `
+            <div class="alert alert-light" style="white-space: pre-wrap; font-family: monospace;">
+${this.escapeHtml(this.greeterData.sample_greeting)}
+            </div>
+        `;
+    }
+    
+    renderGreetedUsers(usersToRender = null) {
+        const tableBody = document.getElementById('greeted-users-table');
+        const badge = document.getElementById('total-greeted-badge');
+        
+        if (!this.greeterData) {
+            tableBody.innerHTML = '<tr><td colspan="6" class="text-center"><div class="loading">Loading...</div></td></tr>';
+            return;
+        }
+        
+        // Store all users for filtering
+        this.allUsers = this.greeterData.greeted_users || [];
+        
+        // Use provided users or all users
+        const users = usersToRender || this.allUsers;
+        
+        if (badge) {
+            badge.textContent = this.allUsers.length || 0;
+        }
+        
+        if (users.length === 0) {
+            const searchInput = document.getElementById('greeted-users-search');
+            const hasSearch = searchInput && searchInput.value.trim();
+            tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">${hasSearch ? 'No users match your search.' : 'No users have been greeted yet.'}</td></tr>`;
+            return;
+        }
+        
+        tableBody.innerHTML = users.map(user => {
+            // greeted_at is a SQLite timestamp string (ISO format like "2025-12-03 02:52:38")
+            // SQLite stores timestamps in UTC, but without timezone indicator
+            // JavaScript Date will interpret it as local time, so we need to be explicit
+            let greetedDate;
+            if (user.greeted_at && user.greeted_at.includes('T')) {
+                // Already has ISO format with T separator
+                greetedDate = new Date(user.greeted_at);
+            } else if (user.greeted_at) {
+                // SQLite format: "YYYY-MM-DD HH:MM:SS" - treat as UTC and add Z
+                greetedDate = new Date(user.greeted_at + 'Z');
+            } else {
+                greetedDate = new Date();
+            }
+            
+            // last_seen is a Unix timestamp (seconds since epoch) from message_stats
+            // Convert to milliseconds for JavaScript Date constructor
+            // Unix timestamps are always UTC
+            let lastSeenDate = null;
+            if (user.last_seen) {
+                const timestamp = user.last_seen;
+                // message_stats stores timestamps as INTEGER (seconds since epoch)
+                // Convert to milliseconds
+                lastSeenDate = new Date(timestamp * 1000);
+            }
+            const lastSeenStr = lastSeenDate ? lastSeenDate.toLocaleString() : '<span class="text-muted">Never</span>';
+            const rolloutBadge = user.rollout_marked 
+                ? '<span class="badge bg-warning">Rollout</span>' 
+                : '<span class="badge bg-success">Manual</span>';
+            
+            return `
+                <tr>
+                    <td><code>${this.escapeHtml(user.sender_id)}</code></td>
+                    <td>${this.escapeHtml(user.channel)}</td>
+                    <td>${greetedDate.toLocaleString()}</td>
+                    <td>${lastSeenStr}</td>
+                    <td>${rolloutBadge}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="greeterManager.ungreetUser('${this.escapeHtml(user.sender_id)}', '${this.escapeHtml(user.channel)}')">
+                            <i class="fas fa-undo"></i> Mark Ungreeted
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+    
+    filterUsers(searchTerm) {
+        if (!this.allUsers || this.allUsers.length === 0) {
+            return;
+        }
+        
+        const term = searchTerm.toLowerCase().trim();
+        
+        if (!term) {
+            this.filteredUsers = this.allUsers;
+            this.renderGreetedUsers(this.allUsers);
+            this.updateSearchResultsCount(this.allUsers.length, this.allUsers.length);
+            return;
+        }
+        
+        // Filter by username, channel, date, or last seen
+        this.filteredUsers = this.allUsers.filter(user => {
+            const senderId = (user.sender_id || '').toLowerCase();
+            const channel = (user.channel || '').toLowerCase();
+            const greetedAt = new Date(user.greeted_at).toLocaleString().toLowerCase();
+            const lastSeen = user.last_seen ? new Date(user.last_seen * 1000).toLocaleString().toLowerCase() : 'never';
+            
+            return senderId.includes(term) || 
+                   channel.includes(term) || 
+                   greetedAt.includes(term) ||
+                   lastSeen.includes(term);
+        });
+        
+        this.renderGreetedUsers(this.filteredUsers);
+        this.updateSearchResultsCount(this.filteredUsers.length, this.allUsers.length);
+    }
+    
+    updateSearchResultsCount(filtered, total) {
+        const countElement = document.getElementById('search-results-count');
+        if (countElement) {
+            if (filtered === total) {
+                countElement.textContent = '';
+            } else {
+                countElement.textContent = `Showing ${filtered} of ${total} users`;
+            }
+        }
+    }
+    
+    formatTimeRemaining(timeRemaining) {
+        if (!timeRemaining) return 'N/A';
+        
+        const parts = [];
+        if (timeRemaining.days > 0) parts.push(`${timeRemaining.days}d`);
+        if (timeRemaining.hours > 0) parts.push(`${timeRemaining.hours}h`);
+        if (timeRemaining.minutes > 0) parts.push(`${timeRemaining.minutes}m`);
+        if (timeRemaining.seconds > 0 && parts.length === 0) parts.push(`${timeRemaining.seconds}s`);
+        
+        return parts.join(' ') || 'Less than 1 minute';
+    }
+    
+    async endRollout() {
+        if (!confirm('Are you sure you want to end the onboarding period? This will allow new users to be greeted immediately.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/greeter/end-rollout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showSuccess(data.message || 'Onboarding period ended successfully');
+                // Reload data
+                await this.loadGreeterData();
+                this.renderRolloutStatus();
+            } else {
+                this.showError(data.error || 'Failed to end onboarding period');
+            }
+        } catch (error) {
+            console.error('Error ending rollout:', error);
+            this.showError('Failed to end onboarding period: ' + error.message);
+        }
+    }
+    
+    async ungreetUser(senderId, channel) {
+        const channelText = channel === '(global)' ? 'globally' : `on channel ${channel}`;
+        if (!confirm(`Are you sure you want to mark ${senderId} as ungreeted ${channelText}? They will be greeted again on their next message.`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/greeter/ungreet', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    sender_id: senderId,
+                    channel: channel === '(global)' ? null : channel
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showSuccess(data.message || 'User marked as ungreeted');
+                // Reload data
+                const searchInput = document.getElementById('greeted-users-search');
+                const currentSearch = searchInput ? searchInput.value : '';
+                
+                await this.loadGreeterData();
+                this.renderGreetedUsers();
+                // Reapply search filter if one was active
+                if (currentSearch) {
+                    this.filterUsers(currentSearch);
+                }
+            } else {
+                this.showError(data.error || 'Failed to mark user as ungreeted');
+            }
+        } catch (error) {
+            console.error('Error ungreeting user:', error);
+            this.showError('Failed to mark user as ungreeted: ' + error.message);
+        }
+    }
+    
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    showError(message) {
+        if (window.connectionManager) {
+            window.connectionManager.showNotification(message, 'danger');
+        } else {
+            alert('Error: ' + message);
+        }
+    }
+    
+    showSuccess(message) {
+        if (window.connectionManager) {
+            window.connectionManager.showNotification(message, 'success');
+        } else {
+            alert('Success: ' + message);
+        }
+    }
+}
+
+// Initialize greeter manager when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    window.greeterManager = new GreeterManager();
+});
+</script>
+
+<style>
+/* Dark mode table styling with better contrast - matching contacts page */
+[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) > td {
+    background-color: #3a3a3a; /* Slightly lighter than even rows, but not too light */
+}
+
+[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(even) > td {
+    background-color: #2d2d2d; /* Darker gray (card-bg) */
+}
+
+[data-theme="dark"] .table-hover > tbody > tr:hover > td {
+    background-color: #404040 !important; /* Slightly lighter for hover, but maintains good contrast */
+}
+
+[data-theme="dark"] .table-dark {
+    background-color: var(--bg-tertiary);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .table-dark th {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .table td {
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+/* Ensure all text in table cells is light in dark mode */
+[data-theme="dark"] .table td,
+[data-theme="dark"] .table td * {
+    color: var(--text-color) !important;
+}
+
+/* Ensure small text is also light */
+[data-theme="dark"] .table td small {
+    color: var(--text-muted) !important;
+}
+
+/* Code elements in tables should also be light */
+[data-theme="dark"] .table td code {
+    color: var(--text-color) !important;
+    background-color: var(--bg-tertiary) !important;
+}
+</style>
+{% endblock %}
+

@@ -1,0 +1,2095 @@
+{% extends "base.html" %}
+
+{% block title %}Contacts - MeshCore Bot Data Viewer{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-users"></i> Contacts
+        </h1>
+    </div>
+</div>
+
+<!-- Tracking Statistics -->
+<div class="row mb-4">
+    <!-- Active Contacts -->
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-users"></i> Active Contacts
+            </div>
+            <div class="card-body d-flex align-items-center">
+                <div class="row text-center w-100">
+                    <div class="col-4">
+                        <h4 id="contacts-24h" class="text-primary">0</h4>
+                        <small class="text-muted">24h</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 id="contacts-7d" class="text-info">0</h4>
+                        <small class="text-muted">7d</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 id="contacts-all" class="text-success">0</h4>
+                        <small class="text-muted">All</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Advertisements -->
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-broadcast-tower"></i> Advertisements
+            </div>
+            <div class="card-body d-flex align-items-center">
+                <div class="row text-center w-100">
+                    <div class="col-4">
+                        <h4 id="adverts-24h" class="text-primary">0</h4>
+                        <small class="text-muted">24h</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 id="adverts-7d" class="text-info">0</h4>
+                        <small class="text-muted">7d</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 id="adverts-all" class="text-success">0</h4>
+                        <small class="text-muted">All</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- New Devices -->
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>
+                    <i class="fas fa-plus-circle"></i> New Devices
+                </span>
+                <small class="text-muted" style="font-size: 0.75em; font-weight: normal;">Last 7 days</small>
+            </div>
+            <div class="card-body d-flex align-items-center">
+                <div class="row text-center w-100">
+                    <div class="col-4">
+                        <h4 id="new-companions" class="text-primary">0</h4>
+                        <small class="text-muted">Companions</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 id="new-repeaters" class="text-info">0</h4>
+                        <small class="text-muted">Repeaters</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 id="new-room-servers" class="text-success">0</h4>
+                        <small class="text-muted">Room Servers</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+        
+    <!-- Activity Trends -->
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-chart-line"></i> Activity Trends (30 Days)
+            </div>
+            <div class="card-body">
+                <canvas id="activityTrendsChart" style="max-height: 250px;"></canvas>
+            </div>
+        </div>
+    </div>
+        </div>
+        
+<!-- Tracking Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap mb-3 gap-2">
+                    <div>
+                        <button class="btn btn-sm btn-danger" id="bulk-delete-contacts" style="display: none;" title="Delete selected contacts">
+                            <i class="fas fa-trash"></i> Delete selected (<span id="bulk-delete-count">0</span>)
+                        </button>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center flex-wrap justify-content-end">
+                        <label class="mb-0 text-nowrap" for="contacts-timespan">
+                            <i class="fas fa-clock"></i> Heard in:
+                        </label>
+                        <select class="form-select form-select-sm" id="contacts-timespan" style="width: auto;">
+                            <option value="24h">Last 24 hours</option>
+                            <option value="7d">Last 7 days</option>
+                            <option value="30d" selected>Last 30 days</option>
+                            <option value="90d">Last 90 days</option>
+                            <option value="all">All time</option>
+                        </select>
+                        <div class="input-group" style="width: 300px;">
+                            <span class="input-group-text">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <input type="text" class="form-control" id="search-contacts" placeholder="Search contacts..." autocomplete="off">
+                        </div>
+                        <button class="btn btn-sm btn-primary" id="refresh-contacts">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                        <tr>
+                            <th class="text-center" style="width: 2.5em;">
+                                <input type="checkbox" class="form-check-input" id="contacts-select-all" title="Select all on page">
+                            </th>
+                            <th class="sortable" data-sort="username">
+                                Name <i class="fas fa-sort"></i>
+                            </th>
+                            <th class="sortable" data-sort="device_type">
+                                Device Type <i class="fas fa-sort"></i>
+                            </th>
+                            <th class="sortable" data-sort="location">
+                                Location <i class="fas fa-sort"></i>
+                            </th>
+                            <th class="sortable" data-sort="distance">
+                                Distance <i class="fas fa-sort"></i>
+                            </th>
+                            <th class="sortable" data-sort="snr">
+                                SNR <i class="fas fa-sort"></i>
+                            </th>
+                            <th class="sortable" data-sort="hop_count">
+                                Hops <i class="fas fa-sort"></i>
+                            </th>
+                            <th class="sortable" data-sort="first_heard">
+                                First Heard <i class="fas fa-sort"></i>
+                            </th>
+                            <th class="sortable sort-active" data-sort="last_seen">
+                                Last Heard <i class="fas fa-sort-down"></i>
+                            </th>
+                            <th class="sortable" data-sort="advert_count">
+                                Adverts <i class="fas fa-sort"></i>
+                            </th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                        <tbody id="contacts-table-body">
+                            <tr>
+                                <td colspan="11" class="text-center">
+                                    <div class="loading">Loading contacts data...</div>
+                                </td>
+                            </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+        <script>
+class ModernContactsManager {
+    constructor() {
+        this.contactsData = [];
+        this.filteredData = [];
+        this.selectedContactIds = new Set();
+        this.searchTerm = '';
+        this.sortColumn = 'last_seen';
+        this.sortDirection = 'desc';
+        this.activityChart = null; // Chart.js instance for activity trends
+        this.initializeContacts();
+    }
+    
+    async initializeContacts() {
+        const savedTimespan = localStorage.getItem('contactsTimespan');
+        const valid = ['24h', '7d', '30d', '90d', 'all'];
+        const el = document.getElementById('contacts-timespan');
+        if (el) {
+            el.value = (savedTimespan && valid.includes(savedTimespan)) ? savedTimespan : '30d';
+        }
+        await this.loadContactsData();
+        this.setupEventHandlers();
+        this.applySort();
+        this.updateSortIcons();
+        this.renderContactsData();
+        this.updateStatistics();
+    }
+    
+    async loadContactsData() {
+        try {
+            const since = document.getElementById('contacts-timespan').value || '30d';
+            const response = await fetch('/api/contacts?since=' + encodeURIComponent(since));
+            const data = await response.json();
+            
+            if (data.error) {
+                this.showError('Failed to load contacts data: ' + data.error);
+                return;
+            }
+            
+            this.contactsData = {
+                tracking_data: data.tracking_data || [],
+                server_stats: data.server_stats || {}
+            };
+            this.filteredData = [...this.contactsData.tracking_data];
+            this.selectedContactIds.clear();
+            
+        } catch (error) {
+            console.error('Error loading contacts data:', error);
+            this.showError('Failed to load contacts data: ' + error.message);
+        }
+    }
+    
+    setupEventHandlers() {
+        document.getElementById('refresh-contacts').addEventListener('click', () => {
+            this.loadContactsData().then(() => {
+                this.applySearch();
+                this.applySort();
+                this.renderContactsData();
+                this.updateStatistics();
+            });
+        });
+        
+        document.getElementById('search-contacts').addEventListener('input', (e) => {
+            this.searchTerm = e.target.value.toLowerCase().trim();
+            this.applySearch();
+            this.applySort();
+            this.renderContactsData();
+            this.updateStatistics();
+        });
+        
+        document.getElementById('contacts-timespan').addEventListener('change', () => {
+            const since = document.getElementById('contacts-timespan').value;
+            localStorage.setItem('contactsTimespan', since);
+            this.loadContactsData().then(() => {
+                this.applySearch();
+                this.applySort();
+                this.renderContactsData();
+                this.updateStatistics();
+            });
+        });
+        
+        document.getElementById('bulk-delete-contacts').addEventListener('click', () => {
+            this.showBulkDeleteConfirmation();
+        });
+        
+        const contactsTable = document.querySelector('.table-responsive table');
+        if (contactsTable) {
+            contactsTable.addEventListener('change', (e) => {
+                if (e.target.id === 'contacts-select-all') {
+                    const checked = e.target.checked;
+                    this.filteredData.forEach(c => {
+                        if (checked) this.selectedContactIds.add(c.user_id);
+                        else this.selectedContactIds.delete(c.user_id);
+                    });
+                    contactsTable.querySelectorAll('.contact-row-checkbox').forEach(cb => cb.checked = checked);
+                    this.updateBulkDeleteButton();
+                    this.updateSelectAllCheckbox();
+                } else if (e.target.classList.contains('contact-row-checkbox')) {
+                    const userId = e.target.dataset.userId;
+                    if (e.target.checked) this.selectedContactIds.add(userId);
+                    else this.selectedContactIds.delete(userId);
+                    this.updateBulkDeleteButton();
+                    this.updateSelectAllCheckbox();
+                }
+            });
+        }
+        
+        // Add click handlers for sortable columns
+        document.querySelectorAll('.sortable').forEach(header => {
+            header.addEventListener('click', () => {
+                const column = header.dataset.sort;
+                this.setSort(column);
+                this.applySort();
+                this.renderContactsData();
+                this.updateSortIcons();
+            });
+        });
+    }
+    
+    setSort(column) {
+        if (this.sortColumn === column) {
+            // Toggle direction if same column
+            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            // New column, default to ascending
+            this.sortColumn = column;
+            this.sortDirection = 'asc';
+        }
+    }
+    
+    applySort() {
+        this.filteredData.sort((a, b) => {
+            let aValue = this.getSortValue(a, this.sortColumn);
+            let bValue = this.getSortValue(b, this.sortColumn);
+            
+            // Handle null/undefined values
+            if (aValue === null || aValue === undefined) aValue = '';
+            if (bValue === null || bValue === undefined) bValue = '';
+            
+            // Handle different data types
+            if (this.sortColumn === 'last_seen' || this.sortColumn === 'first_heard') {
+                // Date sorting
+                aValue = new Date(aValue);
+                bValue = new Date(bValue);
+            } else if (this.sortColumn === 'snr' || this.sortColumn === 'hop_count' || this.sortColumn === 'advert_count' || this.sortColumn === 'distance') {
+                // Numeric sorting
+                aValue = parseFloat(aValue) || 0;
+                bValue = parseFloat(bValue) || 0;
+            } else {
+                // String sorting
+                aValue = String(aValue).toLowerCase();
+                bValue = String(bValue).toLowerCase();
+            }
+            
+            let comparison = 0;
+            if (aValue < bValue) comparison = -1;
+            else if (aValue > bValue) comparison = 1;
+            
+            return this.sortDirection === 'desc' ? -comparison : comparison;
+        });
+    }
+    
+    getSortValue(contact, column) {
+        switch (column) {
+            case 'username':
+                return contact.username || '';
+            case 'device_type':
+                return contact.device_type || '';
+            case 'location':
+                return this.getLocationString(contact);
+            case 'snr':
+                return contact.snr;
+            case 'hop_count':
+                return contact.hop_count;
+            case 'first_heard':
+                return contact.first_heard;
+            case 'last_seen':
+                return contact.last_seen;
+            case 'advert_count':
+                return contact.advert_count;
+            case 'distance':
+                return contact.distance || 0;
+            default:
+                return '';
+        }
+    }
+    
+    getLocationString(contact) {
+        if (contact.city && contact.state) {
+            return `${contact.city}, ${contact.state}`;
+        } else if (contact.city) {
+            return contact.city;
+        } else if (contact.latitude && contact.longitude) {
+            return `${contact.latitude}, ${contact.longitude}`;
+        } else {
+            return '';
+        }
+    }
+    
+    updateSortIcons() {
+        // Remove all sort icons
+        document.querySelectorAll('.sortable i').forEach(icon => {
+            icon.className = 'fas fa-sort';
+        });
+        
+        // Remove active class from all headers
+        document.querySelectorAll('.sortable').forEach(header => {
+            header.classList.remove('sort-active');
+        });
+        
+        // Add active class and correct icon to current sort column
+        const activeHeader = document.querySelector(`[data-sort="${this.sortColumn}"]`);
+        if (activeHeader) {
+            activeHeader.classList.add('sort-active');
+            const icon = activeHeader.querySelector('i');
+            if (icon) {
+                icon.className = this.sortDirection === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+            }
+        }
+    }
+    
+    applySearch() {
+        if (!this.searchTerm) {
+            this.filteredData = [...this.contactsData.tracking_data];
+            return;
+        }
+        
+        this.filteredData = this.contactsData.tracking_data.filter(contact => {
+            // Search in all text fields (case-insensitive)
+            const searchableFields = [
+                contact.username || '',
+                contact.role || '',
+                contact.device_type || '',
+                contact.city || '',
+                contact.state || '',
+                contact.country || ''
+            ];
+            
+            // For public key, only match from the beginning
+            const publicKey = contact.user_id || '';
+            const publicKeyMatch = publicKey.toLowerCase().startsWith(this.searchTerm);
+            
+            // For other fields, match anywhere in the string
+            const otherFieldsMatch = searchableFields.some(field => 
+                field.toLowerCase().includes(this.searchTerm)
+            );
+            
+            return publicKeyMatch || otherFieldsMatch;
+        });
+    }
+    
+    renderContactsData() {
+        const tbody = document.getElementById('contacts-table-body');
+        
+        if (this.filteredData.length === 0) {
+            const message = this.searchTerm ? 
+                `No contacts match "${this.searchTerm}"` : 
+                'No contacts data available';
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="11" class="text-center text-muted">
+                        ${message}
+                    </td>
+                </tr>
+            `;
+            this.updateBulkDeleteButton();
+            this.updateSelectAllCheckbox();
+            return;
+        }
+        
+        tbody.innerHTML = this.filteredData.map(contact => `
+            <tr>
+                <td class="text-center align-middle">
+                    <input type="checkbox" class="form-check-input contact-row-checkbox" data-user-id="${this.escapeHtml(contact.user_id)}" ${this.selectedContactIds.has(contact.user_id) ? 'checked' : ''}>
+                </td>
+                <td>
+                    <strong>${contact.username || 'Unknown'}</strong>
+                    <br>
+                    <small class="text-muted">${contact.user_id ? contact.user_id.substring(0, 16) + '...' : 'Unknown'}</small>
+                </td>
+                <td>${this.formatDeviceType(contact)}</td>
+                <td>${this.formatLocation(contact)}</td>
+                <td>${this.formatDistance(contact)}</td>
+                <td>${this.formatSignal(contact)}</td>
+                <td>${this.formatHops(contact)}</td>
+                <td>${this.formatTimestamp(contact.first_heard)}</td>
+                <td>${this.formatTimeAgo(contact.last_seen)}</td>
+                <td><span class="badge bg-success">${contact.advert_count || 0}</span></td>
+                <td>
+                    <div class="btn-group" role="group">
+                        ${contact.role && (contact.role.toLowerCase() === 'repeater' || contact.role.toLowerCase() === 'roomserver') ? 
+                            `<button class="btn btn-sm ${contact.is_starred ? 'btn-warning' : 'btn-outline-warning'}" onclick="contactsManager.toggleStar('${contact.user_id.replace(/'/g, "\\'")}', this)" title="${contact.is_starred ? 'Unstar contact (removes path bias)' : 'Star contact (adds strong path bias)'}">
+                                <i class="fas ${contact.is_starred ? 'fa-star' : 'fa-star'}"></i>
+                            </button>` : 
+                            ''
+                        }
+                        <button class="btn btn-sm btn-outline-info" onclick="contactsManager.viewAdvertData('${contact.user_id}')" title="View Advertisement Data">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                        ${contact.latitude && contact.longitude && contact.latitude !== 0 && contact.longitude !== 0 ? 
+                            `<button class="btn btn-sm btn-outline-primary" onclick="contactsManager.geocodeContact('${contact.user_id.replace(/'/g, "\\'")}', this)" title="Geocode Location">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </button>` : 
+                            ''
+                        }
+                        <button class="btn btn-sm btn-outline-danger" onclick="contactsManager.showDeleteConfirmation('${contact.user_id.replace(/'/g, "\\'")}', '${(contact.username || 'Unknown').replace(/'/g, "\\'")}')" title="Delete Contact">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+        
+        // Setup path tooltips after rendering
+        this.setupPathTooltips();
+        this.updateBulkDeleteButton();
+        this.updateSelectAllCheckbox();
+    }
+    
+    updateBulkDeleteButton() {
+        const btn = document.getElementById('bulk-delete-contacts');
+        const countEl = document.getElementById('bulk-delete-count');
+        if (btn && countEl) {
+            const n = this.selectedContactIds.size;
+            countEl.textContent = n;
+            if (n === 0) {
+                btn.style.display = 'none';
+            } else {
+                btn.style.display = '';
+                btn.disabled = false;
+            }
+        }
+    }
+    
+    updateSelectAllCheckbox() {
+        const selectAll = document.getElementById('contacts-select-all');
+        if (!selectAll) return;
+        const visibleIds = new Set(this.filteredData.map(c => c.user_id));
+        const allSelected = visibleIds.size > 0 && [...visibleIds].every(id => this.selectedContactIds.has(id));
+        const someSelected = [...visibleIds].some(id => this.selectedContactIds.has(id));
+        selectAll.checked = allSelected;
+        selectAll.indeterminate = someSelected && !allSelected;
+    }
+    
+    updateStatistics() {
+        const now = new Date();
+        const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        
+        // Calculate time-based metrics
+        const contacts24h = this.filteredData.filter(contact => {
+            const lastSeen = new Date(contact.last_seen);
+            return lastSeen >= oneDayAgo;
+        }).length;
+        
+        const contacts7d = this.filteredData.filter(contact => {
+            const lastSeen = new Date(contact.last_seen);
+            return lastSeen >= oneWeekAgo;
+        }).length;
+        
+        const contactsAll = this.filteredData.length;
+        
+        // Calculate advertisement metrics using daily tracking data
+        // Note: These should now be provided by the server from the daily_advertisements table
+        // Fallback to client-side calculation if server data not available
+        
+        // Try to get server-provided daily stats first
+        const serverStats = this.contactsData.server_stats || {};
+        console.log('Contacts data structure:', typeof this.contactsData, 'has server_stats:', 'server_stats' in this.contactsData);
+        console.log('Server stats received:', serverStats);
+        const adverts24h = (serverStats.advertisements_24h !== undefined) ? serverStats.advertisements_24h : this.filteredData.filter(contact => {
+            const lastSeen = new Date(contact.last_seen);
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const contactDate = new Date(lastSeen.getFullYear(), lastSeen.getMonth(), lastSeen.getDate());
+            return contactDate.getTime() === today.getTime();
+        }).reduce((sum, contact) => sum + (contact.advert_count || 0), 0);
+        
+        const adverts7d = (serverStats.advertisements_7d !== undefined) ? serverStats.advertisements_7d : this.filteredData.filter(contact => {
+            const lastSeen = new Date(contact.last_seen);
+            return lastSeen >= oneWeekAgo && lastSeen < oneDayAgo;
+        }).reduce((sum, contact) => sum + (contact.advert_count || 0), 0);
+        
+        const advertsAll = (serverStats.total_advertisements !== undefined) ? serverStats.total_advertisements : this.filteredData.reduce((sum, contact) => sum + (contact.advert_count || 0), 0);
+        
+        console.log('Final advertisement counts:', {
+            '24h': adverts24h,
+            '7d': adverts7d, 
+            'All': advertsAll,
+            'using_server_stats': (serverStats.advertisements_24h !== undefined) && 
+                                  (serverStats.advertisements_7d !== undefined) && 
+                                  (serverStats.total_advertisements !== undefined)
+        });
+        
+        // Calculate new device metrics (devices first seen in the last 7 days)
+        // Debug: Log device types to see what we're working with
+        const deviceTypes = [...new Set(this.filteredData.map(contact => contact.device_type))];
+        console.log('Available device types:', deviceTypes);
+        console.log('Sample contact data:', this.filteredData[0]);
+        
+        // Also check for any devices first heard in the last week regardless of type
+        const anyNewDevices = this.filteredData.filter(contact => {
+            const firstHeard = new Date(contact.first_heard);
+            return firstHeard >= oneWeekAgo;
+        });
+        console.log('Any new devices in last week:', anyNewDevices.length);
+        console.log('Sample new device:', anyNewDevices[0]);
+        
+        // Try different possible device type values
+        const newCompanions = this.filteredData.filter(contact => {
+            const firstHeard = new Date(contact.first_heard);
+            const deviceType = (contact.device_type || '').toLowerCase();
+            return firstHeard >= oneWeekAgo && (
+                deviceType === 'companion' || 
+                deviceType === 'companions' ||
+                deviceType.includes('companion')
+            );
+        }).length;
+        
+        const newRepeaters = this.filteredData.filter(contact => {
+            const firstHeard = new Date(contact.first_heard);
+            const deviceType = (contact.device_type || '').toLowerCase();
+            return firstHeard >= oneWeekAgo && (
+                deviceType === 'repeater' || 
+                deviceType === 'repeaters' ||
+                deviceType.includes('repeater')
+            );
+        }).length;
+        
+        const newRoomServers = this.filteredData.filter(contact => {
+            const firstHeard = new Date(contact.first_heard);
+            const deviceType = (contact.device_type || '').toLowerCase();
+            return firstHeard >= oneWeekAgo && (
+                deviceType === 'room_server' || 
+                deviceType === 'roomserver' ||
+                deviceType === 'room_servers' ||
+                deviceType.includes('room') ||
+                deviceType.includes('server')
+            );
+        }).length;
+        
+        // Debug: Log the counts
+        console.log('New companions:', newCompanions);
+        console.log('New repeaters:', newRepeaters);
+        console.log('New room servers:', newRoomServers);
+        
+        // Update contact metrics
+        document.getElementById('contacts-24h').textContent = contacts24h;
+        document.getElementById('contacts-7d').textContent = contacts7d;
+        document.getElementById('contacts-all').textContent = contactsAll;
+        
+        // Update advertisement metrics
+        document.getElementById('adverts-24h').textContent = adverts24h;
+        document.getElementById('adverts-7d').textContent = adverts7d;
+        document.getElementById('adverts-all').textContent = advertsAll;
+        
+        // Update new device metrics
+        document.getElementById('new-companions').textContent = newCompanions;
+        document.getElementById('new-repeaters').textContent = newRepeaters;
+        document.getElementById('new-room-servers').textContent = newRoomServers;
+        
+        // Update activity trends chart
+        this.updateActivityTrendsChart();
+    }
+    
+    updateActivityTrendsChart() {
+        const serverStats = this.contactsData.server_stats || {};
+        const dailyDataByRole = serverStats.daily_nodes_30d_by_role || [];
+        const nodesTodayByRole = serverStats.nodes_24h_by_role || {};
+        
+        // Destroy existing chart if it exists
+        if (this.activityChart) {
+            this.activityChart.destroy();
+        }
+        
+        // Prepare data for the last 30 days by role
+        // Create a map of date -> role counts for quick lookup
+        const dataMapByRole = {};
+        dailyDataByRole.forEach(item => {
+            dataMapByRole[item.date] = {
+                companion: item.companion || 0,
+                repeater: item.repeater || 0,
+                roomserver: item.roomserver || 0,
+                sensor: item.sensor || 0,
+                other: item.other || 0
+            };
+        });
+        
+        // Generate labels and data arrays for each role
+        const labels = [];
+        const companionData = [];
+        const repeaterData = [];
+        const roomserverData = [];
+        const sensorData = [];
+        const otherData = [];
+        
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD format for today
+        
+        for (let i = 29; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+            
+            labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+            
+            // Use today's data from server stats if this is today, otherwise use dataMapByRole
+            if (dateStr === todayStr) {
+                companionData.push(nodesTodayByRole.companion || 0);
+                repeaterData.push(nodesTodayByRole.repeater || 0);
+                roomserverData.push(nodesTodayByRole.roomserver || 0);
+                sensorData.push(nodesTodayByRole.sensor || 0);
+                otherData.push(nodesTodayByRole.other || 0);
+            } else {
+                const dayData = dataMapByRole[dateStr] || {};
+                companionData.push(dayData.companion || 0);
+                repeaterData.push(dayData.repeater || 0);
+                roomserverData.push(dayData.roomserver || 0);
+                sensorData.push(dayData.sensor || 0);
+                otherData.push(dayData.other || 0);
+            }
+        }
+        
+        // Get canvas context
+        const ctx = document.getElementById('activityTrendsChart');
+        if (!ctx) return;
+        
+        // Create the stacked chart
+        this.activityChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Companions',
+                        data: companionData,
+                        borderColor: 'rgb(255, 193, 7)', // Yellow/warning color
+                        backgroundColor: 'rgba(255, 193, 7, 0.6)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 3
+                    },
+                    {
+                        label: 'Repeaters',
+                        data: repeaterData,
+                        borderColor: 'rgb(13, 110, 253)', // Blue/primary color
+                        backgroundColor: 'rgba(13, 110, 253, 0.6)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 3
+                    },
+                    {
+                        label: 'Room Servers',
+                        data: roomserverData,
+                        borderColor: 'rgb(25, 135, 84)', // Green/success color
+                        backgroundColor: 'rgba(25, 135, 84, 0.6)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 3
+                    },
+                    {
+                        label: 'Sensors',
+                        data: sensorData,
+                        borderColor: 'rgb(13, 202, 240)', // Light blue/info color
+                        backgroundColor: 'rgba(13, 202, 240, 0.6)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 3
+                    },
+                    {
+                        label: 'Other',
+                        data: otherData,
+                        borderColor: 'rgb(108, 117, 125)', // Gray/secondary color
+                        backgroundColor: 'rgba(108, 117, 125, 0.6)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12,
+                            padding: 8,
+                            font: {
+                                size: 11
+                            }
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            footer: function(tooltipItems) {
+                                let total = 0;
+                                tooltipItems.forEach(item => {
+                                    total += item.parsed.y || 0;
+                                });
+                                return 'Total: ' + total;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        stacked: true,
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45,
+                            font: {
+                                size: 9
+                            }
+                        }
+                    },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    }
+                },
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                }
+            }
+        });
+    }
+    
+    formatLastSeen(lastSeen) {
+        if (!lastSeen) return 'Never';
+        
+        const date = new Date(lastSeen);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffHours / 24);
+        const diffWeeks = Math.floor(diffDays / 7);
+        const diffMonths = Math.floor(diffDays / 30);
+        
+        if (diffMonths > 0) {
+            return `${diffMonths}mo ago`;
+        } else if (diffWeeks > 0) {
+            return `${diffWeeks}w ago`;
+        } else if (diffDays > 0) {
+            return `${diffDays}d ago`;
+        } else if (diffHours > 0) {
+            return `${diffHours}h ago`;
+        } else if (diffMinutes > 0) {
+            return `${diffMinutes}m ago`;
+                                } else {
+            return 'Just now';
+        }
+    }
+    
+    formatLastMessage(lastMessage) {
+        if (!lastMessage) return 'Never';
+        
+        const date = new Date(lastMessage);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffHours / 24);
+        const diffWeeks = Math.floor(diffDays / 7);
+        const diffMonths = Math.floor(diffDays / 30);
+        
+        if (diffMonths > 0) {
+            return `${diffMonths}mo ago`;
+        } else if (diffWeeks > 0) {
+            return `${diffWeeks}w ago`;
+        } else if (diffDays > 0) {
+            return `${diffDays}d ago`;
+        } else if (diffHours > 0) {
+            return `${diffHours}h ago`;
+        } else if (diffMinutes > 0) {
+            return `${diffMinutes}m ago`;
+                        } else {
+            return 'Just now';
+        }
+    }
+    
+    getStatusBadge(lastSeen) {
+        if (!lastSeen) return '<span class="badge bg-secondary">Unknown</span>';
+        
+        const date = new Date(lastSeen);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        
+        if (diffHours < 1) {
+            return '<span class="badge bg-success">Online</span>';
+        } else if (diffHours < 24) {
+            return '<span class="badge bg-warning">Recent</span>';
+                    } else {
+            return '<span class="badge bg-secondary">Offline</span>';
+        }
+    }
+    
+    formatLocation(contact) {
+        if (contact.city && contact.state) {
+            return `${contact.city}, ${contact.state}`;
+        } else if (contact.city) {
+            return contact.city;
+        } else if (contact.latitude && contact.longitude) {
+            return `${contact.latitude.toFixed(4)}, ${contact.longitude.toFixed(4)}`;
+        } else {
+            return '<span class="text-muted">Unknown</span>';
+        }
+    }
+    
+    formatDistance(contact) {
+        if (contact.distance !== undefined && contact.distance !== null) {
+            if (contact.distance < 1) {
+                return `${(contact.distance * 1000).toFixed(0)}m`;
+            } else {
+                return `${contact.distance.toFixed(1)}km`;
+            }
+        } else {
+            return '<span class="text-muted">N/A</span>';
+        }
+    }
+    
+    formatDeviceType(contact) {
+        const deviceType = contact.device_type || 'Unknown';
+        const role = contact.role || '';
+        
+        // Color code based on role
+        let badgeClass = 'bg-secondary'; // Default for unknown
+        let displayText = deviceType;
+        
+        if (role.toLowerCase() === 'repeater') {
+            badgeClass = 'bg-primary'; // Blue for Repeater
+        } else if (role.toLowerCase() === 'roomserver') {
+            badgeClass = 'bg-success'; // Green for RoomServer
+        } else if (role.toLowerCase() === 'companion') {
+            badgeClass = 'bg-warning'; // Yellow for Companion
+        } else if (role.toLowerCase() === 'sensor') {
+            badgeClass = 'bg-info'; // Light blue for Sensor
+        }
+        
+        return `<span class="badge ${badgeClass}">${displayText}</span>`;
+    }
+    
+    formatSignal(contact) {
+        if (contact.snr !== null && contact.snr !== undefined) {
+            const snr = parseFloat(contact.snr);
+            if (snr > 0) {
+                return `<span class="badge bg-success">${snr.toFixed(1)} dB</span>`;
+            } else {
+                return `<span class="badge bg-warning">${snr.toFixed(1)} dB</span>`;
+            }
+        } else {
+            return '<span class="text-muted">N/A</span>';
+        }
+    }
+    
+    formatHops(contact) {
+        const hopCount = contact.hop_count || 0;
+        const outPath = contact.out_path || '';
+        const outPathLen = contact.out_path_len || -1;
+        const allPaths = contact.all_paths || [];
+        const hasMultiplePaths = allPaths.length > 1;
+        
+        // Escape the path for use in HTML attributes
+        const escapedPath = outPath.replace(/"/g, '&quot;');
+        const escapedUserId = contact.user_id.replace(/"/g, '&quot;');
+        
+        // If we have path data, add tooltip and click functionality
+        if (outPath && outPathLen > 0) {
+            // Create a unique ID for this tooltip
+            const tooltipId = `hops-tooltip-${contact.user_id.substring(0, 16).replace(/[^a-zA-Z0-9]/g, '_')}`;
+            const pathCountText = hasMultiplePaths ? ` <small>(${allPaths.length} paths)</small>` : '';
+            const bytesPerHop = contact.out_bytes_per_hop != null && [1, 2, 3].includes(Number(contact.out_bytes_per_hop)) ? Number(contact.out_bytes_per_hop) : '';
+            return `<span class="badge bg-primary path-badge" 
+                          id="${tooltipId}" 
+                          data-path-hex="${escapedPath}"
+                          data-path-len="${outPathLen}"
+                          data-bytes-per-hop="${bytesPerHop}"
+                          data-user-id="${escapedUserId}"
+                          onclick="contactsManager.showPathsModal('${escapedUserId}')"
+                          style="cursor: pointer; position: relative;" 
+                          title="${hasMultiplePaths ? 'Click to view all paths' : 'Click to view path'}">
+                      ${hopCount}${pathCountText}
+                    </span>`;
+        } else if (outPathLen === 0) {
+            // Direct connection
+            return `<span class="badge bg-primary" 
+                          data-bs-toggle="tooltip" 
+                          data-bs-placement="top"
+                          title="Direct connection (0 hops)">
+                      ${hopCount}
+                    </span>`;
+        } else {
+            // No path data
+            return `<span class="badge bg-primary">${hopCount}</span>`;
+        }
+    }
+    
+    setupPathTooltips() {
+        // Create a global custom tooltip element if it doesn't exist
+        let customTooltip = document.getElementById('custom-path-tooltip');
+        if (!customTooltip) {
+            customTooltip = document.createElement('div');
+            customTooltip.id = 'custom-path-tooltip';
+            customTooltip.className = 'custom-path-tooltip';
+            customTooltip.style.cssText = 'position: absolute; z-index: 1070; display: none; padding: 0.5rem; background-color: rgba(0, 0, 0, 0.9); color: white; border-radius: 0.25rem; font-size: 0.875rem; max-width: 300px; pointer-events: none;';
+            document.body.appendChild(customTooltip);
+        }
+        
+        // Setup event listeners for path tooltips after rendering
+        document.querySelectorAll('.path-badge').forEach(badge => {
+            const pathHex = badge.dataset.pathHex;
+            if (!pathHex) return;
+            
+            // Check if tooltip is already set up
+            if (badge.dataset.tooltipSetup === 'true') return;
+            
+            badge.dataset.tooltipSetup = 'true';
+            
+            // Load path data on first hover (for tooltip)
+            let pathLoaded = false;
+            let pathContent = 'Loading path...';
+            
+            const showTooltip = (event) => {
+                const rect = badge.getBoundingClientRect();
+                customTooltip.innerHTML = pathContent;
+                customTooltip.style.display = 'block';
+                customTooltip.style.left = (rect.left + rect.width / 2 - customTooltip.offsetWidth / 2) + 'px';
+                customTooltip.style.top = (rect.top - customTooltip.offsetHeight - 8) + 'px';
+                
+                // Adjust if tooltip goes off screen
+                const tooltipRect = customTooltip.getBoundingClientRect();
+                if (tooltipRect.left < 10) {
+                    customTooltip.style.left = '10px';
+                }
+                if (tooltipRect.right > window.innerWidth - 10) {
+                    customTooltip.style.left = (window.innerWidth - customTooltip.offsetWidth - 10) + 'px';
+                }
+                if (tooltipRect.top < 10) {
+                    customTooltip.style.top = (rect.bottom + 8) + 'px';
+                }
+            };
+            
+            const hideTooltip = () => {
+                customTooltip.style.display = 'none';
+            };
+            
+            // Only show tooltip on hover, click opens modal
+            badge.addEventListener('mouseenter', async (event) => {
+                // Don't show tooltip if user is clicking (will open modal)
+                if (event.target === badge && event.type === 'mouseenter') {
+                    showTooltip(event);
+                    
+                    // If path is already loaded, we're done
+                    if (pathLoaded) {
+                        return;
+                    }
+                    
+                    // If we're already loading, don't start another request
+                    if (badge.dataset.loading === 'true') {
+                        return;
+                    }
+                    
+                    try {
+                        badge.dataset.loading = 'true';
+                        const body = { path_hex: pathHex };
+                        const bytesPerHop = badge.dataset.bytesPerHop;
+                        if (bytesPerHop && ['1', '2', '3'].includes(bytesPerHop)) {
+                            body.bytes_per_hop = parseInt(bytesPerHop, 10);
+                        }
+                        // Fetch decoded path from API
+                        const response = await fetch('/api/decode-path', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(body)
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (!response.ok || !data.success) {
+                            throw new Error(data.error || 'Failed to decode path');
+                        }
+                        
+                        if (!data.path || !Array.isArray(data.path)) {
+                            throw new Error('Invalid path data format');
+                        }
+                        
+                        // Format the path response
+                        const pathLines = data.path.map(node => {
+                            if (node.found) {
+                                // Escape HTML to prevent XSS
+                                const name = this.escapeHtml(node.name);
+                                // Add ❓ emoji if this is a geographic guess (collision)
+                                const guessIndicator = node.geographic_guess ? ' ❓' : '';
+                                return `${node.node_id}: ${name}${guessIndicator}`;
+                            } else {
+                                return `${node.node_id}: Unknown`;
+                            }
+                        });
+                        
+                        pathContent = pathLines.length > 0 ? pathLines.join('<br>') : 'No path data';
+                        pathLoaded = true;
+                        badge.dataset.loading = 'false';
+                        
+                        // Update tooltip content if still hovering
+                        if (badge.matches(':hover')) {
+                            showTooltip(event);
+                        }
+                        
+                    } catch (error) {
+                        console.error('Error loading path tooltip:', error);
+                        pathContent = 'Error loading path: ' + error.message;
+                        badge.dataset.loading = 'false';
+                        
+                        // Update tooltip content if still hovering
+                        if (badge.matches(':hover')) {
+                            showTooltip(event);
+                        }
+                    }
+                }
+            });
+            
+            badge.addEventListener('mouseleave', hideTooltip);
+            badge.addEventListener('mousemove', (event) => {
+                if (badge.matches(':hover')) {
+                    showTooltip(event);
+                }
+            });
+        });
+    }
+    
+    formatPathHex(pathHex, bytesPerHop) {
+        // Break hex string into chunks for readability. bytesPerHop 1,2,3 → 2,4,6 hex chars per node.
+        if (!pathHex) return '';
+        const n = (bytesPerHop && [1, 2, 3].includes(Number(bytesPerHop))) ? (Number(bytesPerHop) * 2) : 2;
+        const chunks = [];
+        for (let i = 0; i < pathHex.length; i += n) {
+            chunks.push(pathHex.slice(i, i + n));
+        }
+        return chunks.join(' ') || pathHex;
+    }
+    
+    sortPaths(paths, sortOrder) {
+        // Create a copy to avoid mutating the original array
+        const sortedPaths = [...paths];
+        
+        switch (sortOrder) {
+            case 'length':
+                // Sort by path_length ascending (shortest first)
+                sortedPaths.sort((a, b) => {
+                    const aLength = a.path_length || 0;
+                    const bLength = b.path_length || 0;
+                    return aLength - bLength;
+                });
+                break;
+            case 'recency':
+                // Sort by last_seen descending (most recent first)
+                sortedPaths.sort((a, b) => {
+                    const aDate = a.last_seen ? new Date(a.last_seen) : new Date(0);
+                    const bDate = b.last_seen ? new Date(b.last_seen) : new Date(0);
+                    return bDate - aDate;
+                });
+                break;
+            case 'frequency':
+                // Sort by observation_count descending (most observations first)
+                sortedPaths.sort((a, b) => {
+                    const aCount = a.observation_count || 0;
+                    const bCount = b.observation_count || 0;
+                    return bCount - aCount;
+                });
+                break;
+            default:
+                // Default to length sorting (shortest first)
+                sortedPaths.sort((a, b) => {
+                    const aLength = a.path_length || 0;
+                    const bLength = b.path_length || 0;
+                    return aLength - bLength;
+                });
+        }
+        
+        return sortedPaths;
+    }
+    
+    renderPathsInModal(paths, primaryPath) {
+        if (paths.length === 0) {
+            return '<p class="text-muted">No path data available for this contact.</p>';
+        }
+        
+        let pathsHtml = '<div class="list-group paths-list-group">';
+        for (let i = 0; i < paths.length; i++) {
+            const path = paths[i];
+            const isPrimary = path.path_hex === primaryPath;
+            const primaryBadge = isPrimary ? '<span class="badge bg-success ms-2">Primary</span>' : '';
+            const bph = path.bytes_per_hop != null && [1, 2, 3].includes(Number(path.bytes_per_hop)) ? Number(path.bytes_per_hop) : null;
+            const formattedPathHex = this.formatPathHex(path.path_hex, bph);
+            const hopLabel = bph && path.path_length > 0 ? `${Math.floor(path.path_length / bph)} hops, ` : '';
+            const bytesPerHopAttr = bph != null ? ` data-path-bph="${bph}"` : '';
+            
+            pathsHtml += `
+                <div class="list-group-item path-list-item ${isPrimary ? 'border-success' : ''}" id="path-item-${i}"${bytesPerHopAttr}>
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">
+                                Path ${i + 1} ${primaryBadge}
+                                <small class="text-muted">(${hopLabel}${path.path_length} bytes, ${path.observation_count} observations)</small>
+                            </h6>
+                            <p class="mb-1"><code class="path-hex-code">${this.escapeHtml(formattedPathHex)}</code></p>
+                            <small class="text-muted">Last seen: ${this.formatTimeAgo(path.last_seen)}</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="contactsManager.decodePathInModal('${String(path.path_hex).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', ${i}, ${bph != null ? bph : 'null'})">
+                            <i class="fas fa-code"></i> Decode
+                        </button>
+                    </div>
+                    <div id="decoded-path-${i}" class="mt-2" style="display: none;"></div>
+                </div>
+            `;
+        }
+        pathsHtml += '</div>';
+        return pathsHtml;
+    }
+    
+    async showPathsModal(userId) {
+        // Find the contact data
+        const contact = this.filteredData.find(c => c.user_id === userId) || 
+                      this.contactsData.tracking_data.find(c => c.user_id === userId);
+        if (!contact) {
+            this.showError('Contact data not found');
+            return;
+        }
+        
+        // Store contact and paths for re-rendering
+        this.currentModalContact = contact;
+        this.currentModalPaths = contact.all_paths || [];
+        const primaryPath = contact.out_path || '';
+        
+        // Load sort preference from localStorage (default to 'length')
+        const sortOrder = localStorage.getItem('contactsPathSortOrder') || 'length';
+        
+        // Sort paths according to preference
+        const sortedPaths = this.sortPaths(this.currentModalPaths, sortOrder);
+        
+        // Build modal content
+        const pathsHtml = this.renderPathsInModal(sortedPaths, primaryPath);
+        
+        // Create modal HTML with dark mode support
+        const modalHtml = `
+            <div class="modal fade" id="pathsModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content paths-modal-content">
+                        <div class="modal-header paths-modal-header">
+                            <h5 class="modal-title">
+                                <i class="fas fa-route"></i> Paths for ${this.escapeHtml(contact.username || 'Unknown')}
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body paths-modal-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <p class="text-muted mb-0">Showing ${sortedPaths.length} path${sortedPaths.length !== 1 ? 's' : ''} from observed_paths table.</p>
+                                <div class="d-flex align-items-center gap-2">
+                                    <label for="pathSortOrder" class="mb-0 small text-muted">Sort by:</label>
+                                    <select class="form-select form-select-sm" id="pathSortOrder" style="width: auto;">
+                                        <option value="length" ${sortOrder === 'length' ? 'selected' : ''}>Length</option>
+                                        <option value="recency" ${sortOrder === 'recency' ? 'selected' : ''}>Recency</option>
+                                        <option value="frequency" ${sortOrder === 'frequency' ? 'selected' : ''}>Frequency</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="paths-list-container">
+                                ${pathsHtml}
+                            </div>
+                        </div>
+                        <div class="modal-footer paths-modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById('pathsModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Setup sort dropdown event handler
+        const sortSelect = document.getElementById('pathSortOrder');
+        if (sortSelect) {
+            sortSelect.addEventListener('change', (e) => {
+                const newSortOrder = e.target.value;
+                // Save preference to localStorage
+                localStorage.setItem('contactsPathSortOrder', newSortOrder);
+                
+                // Re-sort paths
+                const reSortedPaths = this.sortPaths(this.currentModalPaths, newSortOrder);
+                
+                // Re-render paths
+                const pathsContainer = document.getElementById('paths-list-container');
+                if (pathsContainer) {
+                    pathsContainer.innerHTML = this.renderPathsInModal(reSortedPaths, primaryPath);
+                }
+            });
+        }
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('pathsModal'));
+        modal.show();
+        
+        // Clean up modal when hidden
+        document.getElementById('pathsModal').addEventListener('hidden.bs.modal', () => {
+            document.getElementById('pathsModal').remove();
+            // Clear stored data
+            this.currentModalContact = null;
+            this.currentModalPaths = null;
+        });
+    }
+    
+    async decodePathInModal(pathHex, pathIndex, pathBytesPerHop) {
+        const decodedDiv = document.getElementById(`decoded-path-${pathIndex}`);
+        const pathItem = document.getElementById(`path-item-${pathIndex}`);
+        const button = pathItem ? pathItem.querySelector('button') : null;
+
+        if (!decodedDiv || !button) return;
+
+        // Show loading state
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Decoding...';
+        decodedDiv.style.display = 'block';
+        decodedDiv.innerHTML = '<div class="text-muted"><i class="fas fa-spinner fa-spin"></i> Decoding path...</div>';
+
+        try {
+            // Prefer this path's bytes_per_hop; fall back to contact's out_bytes_per_hop
+            const bytesPerHop = (pathBytesPerHop != null && [1, 2, 3].includes(Number(pathBytesPerHop)))
+                ? Number(pathBytesPerHop)
+                : (this.currentModalContact?.out_bytes_per_hop != null && [1, 2, 3].includes(Number(this.currentModalContact.out_bytes_per_hop)) ? Number(this.currentModalContact.out_bytes_per_hop) : null);
+            const body = { path_hex: pathHex };
+            if (bytesPerHop != null) {
+                body.bytes_per_hop = bytesPerHop;
+            }
+            const response = await fetch('/api/decode-path', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Failed to decode path');
+            }
+            
+            if (!data.path || !Array.isArray(data.path)) {
+                throw new Error('Invalid path data format');
+            }
+            
+            // Format the decoded path
+            const pathLines = data.path.map(node => {
+                if (node.found) {
+                    const name = this.escapeHtml(node.name);
+                    const guessIndicator = node.geographic_guess ? ' <span class="badge bg-warning">Guess</span>' : '';
+                    return `<div class="mb-1"><strong>${node.node_id}:</strong> ${name}${guessIndicator}</div>`;
+                } else {
+                    return `<div class="mb-1 text-muted"><strong>${node.node_id}:</strong> Unknown</div>`;
+                }
+            });
+            
+            decodedDiv.innerHTML = `
+                <div class="alert alert-info decoded-path-alert mb-0">
+                    <strong>Decoded Path:</strong>
+                    <div class="mt-2 decoded-path-content">${pathLines.join('')}</div>
+                </div>
+            `;
+            
+        } catch (error) {
+            console.error('Error decoding path:', error);
+            decodedDiv.innerHTML = `
+                <div class="alert alert-danger mb-0">
+                    <strong>Error:</strong> ${this.escapeHtml(error.message)}
+                </div>
+            `;
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+    }
+    
+    formatTimestamp(timestamp) {
+        if (!timestamp) return '<span class="text-muted">Never</span>';
+        
+        const date = new Date(timestamp);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    }
+    
+    formatTimeAgo(timestamp) {
+        if (!timestamp) return '<span class="text-muted">Never</span>';
+        
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffHours / 24);
+        const diffWeeks = Math.floor(diffDays / 7);
+        const diffMonths = Math.floor(diffDays / 30);
+        
+        if (diffMonths > 0) {
+            return `${diffMonths}mo ago`;
+        } else if (diffWeeks > 0) {
+            return `${diffWeeks}w ago`;
+        } else if (diffDays > 0) {
+            return `${diffDays}d ago`;
+        } else if (diffHours > 0) {
+            return `${diffHours}h ago`;
+        } else if (diffMinutes > 0) {
+            return `${diffMinutes}m ago`;
+        } else {
+            return '<span class="text-success">Just now</span>';
+        }
+    }
+    
+    viewAdvertData(userId) {
+        // Find the contact data
+        const contact = this.filteredData.find(c => c.user_id === userId);
+        if (!contact) {
+            alert('Contact data not found');
+            return;
+        }
+        
+        // Create a modal to display the advertisement data
+        const modalHtml = `
+            <div class="modal fade" id="advertModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Advertisement Data - ${contact.username || 'Unknown'}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <pre class="bg-light p-3 rounded" style="background-color: var(--bg-secondary); color: var(--text-color);">${JSON.stringify(contact.raw_advert_data_parsed || contact.raw_advert_data || 'No advertisement data available', null, 2)}</pre>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+                                    </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById('advertModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('advertModal'));
+        modal.show();
+    }
+    
+    async geocodeContact(userId, buttonElement = null) {
+        // Find the contact data
+        const contact = this.filteredData.find(c => c.user_id === userId);
+        if (!contact) {
+            this.showError('Contact data not found');
+            return;
+        }
+        
+        // Check if contact has valid coordinates
+        if (!contact.latitude || !contact.longitude || contact.latitude === 0 || contact.longitude === 0) {
+            this.showError('Contact does not have valid coordinates');
+            return;
+        }
+        
+        // Get the button element - use passed element or find it
+        const button = buttonElement || document.querySelector(`button[onclick*="${userId.substring(0, 16)}"]`);
+        if (!button) {
+            this.showError('Button not found');
+            return;
+        }
+        
+        // Disable button and show loading state
+        const originalHTML = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        button.classList.remove('btn-outline-primary');
+        button.classList.add('btn-secondary');
+        
+        try {
+            // Call the geocoding API
+            const response = await fetch('/api/geocode-contact', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    public_key: userId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Geocoding failed');
+            }
+            
+            // Check if we got any location data
+            if (!data.location || (!data.location.city && !data.location.state && !data.location.country)) {
+                throw new Error('Geocoding returned no location data');
+            }
+            
+            // Update the contact data in our local array
+            const contactIndex = this.filteredData.findIndex(c => c.user_id === userId);
+            if (contactIndex !== -1) {
+                this.filteredData[contactIndex].city = data.location.city || this.filteredData[contactIndex].city;
+                this.filteredData[contactIndex].state = data.location.state || this.filteredData[contactIndex].state;
+                this.filteredData[contactIndex].country = data.location.country || this.filteredData[contactIndex].country;
+            }
+            
+            // Also update in the main contacts data
+            const mainContactIndex = this.contactsData.tracking_data.findIndex(c => c.user_id === userId);
+            if (mainContactIndex !== -1) {
+                this.contactsData.tracking_data[mainContactIndex].city = data.location.city || this.contactsData.tracking_data[mainContactIndex].city;
+                this.contactsData.tracking_data[mainContactIndex].state = data.location.state || this.contactsData.tracking_data[mainContactIndex].state;
+                this.contactsData.tracking_data[mainContactIndex].country = data.location.country || this.contactsData.tracking_data[mainContactIndex].country;
+            }
+            
+            // Re-render the table to show updated location
+            this.renderContactsData();
+            
+            // Show success message
+            this.showSuccess(data.message || 'Location geocoded successfully');
+            
+        } catch (error) {
+            console.error('Error geocoding contact:', error);
+            this.showError('Failed to geocode contact: ' + error.message);
+        } finally {
+            // Restore button state
+            button.disabled = false;
+            button.innerHTML = originalHTML;
+            button.classList.remove('btn-secondary');
+            button.classList.add('btn-outline-primary');
+        }
+    }
+    
+    async toggleStar(userId, buttonElement = null) {
+        // Find the contact data
+        const contact = this.filteredData.find(c => c.user_id === userId);
+        if (!contact) {
+            this.showError('Contact data not found');
+            return;
+        }
+        
+        // Get the button element - use passed element or find it
+        const button = buttonElement || document.querySelector(`button[onclick*="toggleStar('${userId.substring(0, 16)}"]`);
+        if (!button) {
+            this.showError('Button not found');
+            return;
+        }
+        
+        // Disable button and show loading state
+        const originalHTML = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        
+        try {
+            // Call the toggle star API
+            const response = await fetch('/api/toggle-star-contact', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    public_key: userId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Failed to toggle star status');
+            }
+            
+            // Update the contact data in our local array
+            const contactIndex = this.filteredData.findIndex(c => c.user_id === userId);
+            if (contactIndex !== -1) {
+                this.filteredData[contactIndex].is_starred = data.is_starred;
+            }
+            
+            // Also update in the main contacts data
+            const mainContactIndex = this.contactsData.tracking_data.findIndex(c => c.user_id === userId);
+            if (mainContactIndex !== -1) {
+                this.contactsData.tracking_data[mainContactIndex].is_starred = data.is_starred;
+            }
+            
+            // Re-render the table to show updated star status
+            this.renderContactsData();
+            
+            // Show success message
+            const action = data.is_starred ? 'starred' : 'unstarred';
+            this.showSuccess(`Contact ${action} successfully. Path command will ${data.is_starred ? 'strongly prefer' : 'no longer prefer'} this repeater.`);
+            
+        } catch (error) {
+            console.error('Error toggling star status:', error);
+            this.showError('Failed to toggle star status: ' + error.message);
+        } finally {
+            // Restore button state
+            button.disabled = false;
+            button.innerHTML = originalHTML;
+        }
+    }
+    
+    showDeleteConfirmation(userId, username) {
+        // Find the contact data
+        const contact = this.filteredData.find(c => c.user_id === userId);
+        if (!contact) {
+            this.showError('Contact data not found');
+            return;
+        }
+        
+        // Create a modal for delete confirmation
+        const modalHtml = `
+            <div class="modal fade" id="deleteContactModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title">
+                                <i class="fas fa-exclamation-triangle"></i> Delete Contact
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-3">
+                                <strong>Are you sure you want to delete this contact?</strong>
+                            </p>
+                            <div class="alert alert-warning">
+                                <strong>Contact Information:</strong><br>
+                                <strong>Name:</strong> ${this.escapeHtml(username || 'Unknown')}<br>
+                                <strong>Public Key:</strong> <code>${userId.substring(0, 16)}...</code>
+                            </div>
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <strong>Warning:</strong> This will permanently delete all tracking data for this contact, including:
+                                <ul class="mb-0 mt-2">
+                                    <li>Contact history and statistics</li>
+                                    <li>Location information</li>
+                                    <li>Advertisement data</li>
+                                    <li>Daily statistics</li>
+                                </ul>
+                                <p class="mb-0 mt-2">
+                                    <strong>This action cannot be undone.</strong> The contact is not banned and may reappear if heard again.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                                <i class="fas fa-trash"></i> Delete Contact
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById('deleteContactModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Get the modal element
+        const modalElement = document.getElementById('deleteContactModal');
+        const modal = new bootstrap.Modal(modalElement);
+        
+        // Set up delete button handler
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+        confirmBtn.addEventListener('click', () => {
+            this.deleteContact(userId, username, modalElement);
+        });
+        
+        // Show modal
+        modal.show();
+        
+        // Clean up modal when hidden
+        modalElement.addEventListener('hidden.bs.modal', () => {
+            modalElement.remove();
+        });
+    }
+    
+    async deleteContact(userId, username, modalElement) {
+        // Disable the delete button and show loading state
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+        const originalHTML = confirmBtn.innerHTML;
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+        
+        try {
+            // Call the delete API
+            const response = await fetch('/api/delete-contact', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    public_key: userId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Failed to delete contact');
+            }
+            
+            // Close the modal
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Remove contact from local data
+            this.contactsData.tracking_data = this.contactsData.tracking_data.filter(c => c.user_id !== userId);
+            this.filteredData = this.filteredData.filter(c => c.user_id !== userId);
+            
+            // Re-render the table
+            this.renderContactsData();
+            this.updateStatistics();
+            
+            // Show success message
+            this.showSuccess(`Contact "${username || 'Unknown'}" has been deleted successfully.`);
+            
+        } catch (error) {
+            console.error('Error deleting contact:', error);
+            this.showError('Failed to delete contact: ' + error.message);
+            
+            // Restore button state
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = originalHTML;
+        }
+    }
+    
+    showBulkDeleteConfirmation() {
+        const count = this.selectedContactIds.size;
+        if (count === 0) return;
+        const contactList = this.filteredData
+            .filter(c => this.selectedContactIds.has(c.user_id))
+            .map(c => (c.username || 'Unknown') + (c.user_id ? ' (' + c.user_id.substring(0, 12) + '...)' : ''));
+        const listPreview = contactList.length <= 5
+            ? contactList.join(', ')
+            : contactList.slice(0, 5).join(', ') + ' and ' + (contactList.length - 5) + ' more';
+        
+        const modalHtml = `
+            <div class="modal fade" id="bulkDeleteContactModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title">
+                                <i class="fas fa-exclamation-triangle"></i> Delete ${count} Contact${count !== 1 ? 's' : ''}
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-3">
+                                <strong>Are you sure you want to delete ${count} selected contact${count !== 1 ? 's' : ''}?</strong>
+                            </p>
+                            <div class="alert alert-warning">
+                                <strong>Selected:</strong> ${this.escapeHtml(listPreview)}
+                            </div>
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <strong>Warning:</strong> This will permanently delete all tracking data for the selected contact${count !== 1 ? 's' : ''}, including:
+                                <ul class="mb-0 mt-2">
+                                    <li>Contact history and statistics</li>
+                                    <li>Location information</li>
+                                    <li>Advertisement data</li>
+                                    <li>Daily statistics</li>
+                                </ul>
+                                <p class="mb-0 mt-2">
+                                    <strong>This action cannot be undone.</strong> Contacts are not banned and may reappear if heard again.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-danger" id="confirmBulkDeleteBtn">
+                                <i class="fas fa-trash"></i> Delete ${count} contact${count !== 1 ? 's' : ''}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const existingModal = document.getElementById('bulkDeleteContactModal');
+        if (existingModal) existingModal.remove();
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        const modalElement = document.getElementById('bulkDeleteContactModal');
+        const modal = new bootstrap.Modal(modalElement);
+        
+        document.getElementById('confirmBulkDeleteBtn').addEventListener('click', () => {
+            this.deleteSelectedContacts(modalElement);
+        });
+        
+        modal.show();
+        modalElement.addEventListener('hidden.bs.modal', () => modalElement.remove());
+    }
+    
+    async deleteSelectedContacts(modalElement) {
+        const confirmBtn = document.getElementById('confirmBulkDeleteBtn');
+        const originalHTML = confirmBtn.innerHTML;
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+        
+        const toDelete = [...this.selectedContactIds];
+        let successCount = 0;
+        let failCount = 0;
+        
+        try {
+            for (const userId of toDelete) {
+                try {
+                    const response = await fetch('/api/delete-contact', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ public_key: userId })
+                    });
+                    const data = await response.json();
+                    if (response.ok && data.success) successCount++;
+                    else failCount++;
+                } catch {
+                    failCount++;
+                }
+            }
+            
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) modal.hide();
+            
+            toDelete.forEach(userId => {
+                this.contactsData.tracking_data = this.contactsData.tracking_data.filter(c => c.user_id !== userId);
+                this.filteredData = this.filteredData.filter(c => c.user_id !== userId);
+                this.selectedContactIds.delete(userId);
+            });
+            
+            this.renderContactsData();
+            this.updateStatistics();
+            
+            if (failCount === 0) {
+                this.showSuccess(`${successCount} contact${successCount !== 1 ? 's' : ''} deleted successfully.`);
+            } else {
+                this.showError(`${successCount} deleted, ${failCount} failed.`);
+            }
+        } catch (error) {
+            console.error('Error during bulk delete:', error);
+            this.showError('Failed to delete contacts: ' + error.message);
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = originalHTML;
+        }
+    }
+    
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    showError(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger alert-dismissible fade show';
+        errorDiv.setAttribute('role', 'alert');
+        errorDiv.innerHTML = `
+            <strong>Error:</strong> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        const content = document.querySelector('.container-fluid');
+        if (content) {
+            content.insertBefore(errorDiv, content.firstChild);
+            
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.parentNode.removeChild(errorDiv);
+                }
+            }, 5000);
+        }
+    }
+    
+    showSuccess(message) {
+        const successDiv = document.createElement('div');
+        successDiv.className = 'alert alert-success alert-dismissible fade show';
+        successDiv.setAttribute('role', 'alert');
+        successDiv.innerHTML = `
+            <strong>Success:</strong> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        const content = document.querySelector('.container-fluid');
+        if (content) {
+            content.insertBefore(successDiv, content.firstChild);
+            
+            setTimeout(() => {
+                if (successDiv.parentNode) {
+                    successDiv.parentNode.removeChild(successDiv);
+                }
+            }, 5000);
+        }
+    }
+}
+
+// Initialize contacts manager when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    window.contactsManager = new ModernContactsManager();
+        });
+        </script>
+
+<style>
+/* Sortable column styling - subtle and clean */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.sortable i {
+    margin-left: 5px;
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+    font-size: 0.8em;
+}
+
+.sortable:hover i {
+    opacity: 0.8;
+}
+
+.sort-active i {
+    opacity: 1;
+    color: #0d6efd !important;
+}
+
+/* Dark mode table styling with better contrast */
+[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) > td {
+    background-color: #3a3a3a; /* Slightly lighter than even rows, but not too light */
+}
+
+[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(even) > td {
+    background-color: #2d2d2d; /* Darker gray (card-bg) */
+}
+
+[data-theme="dark"] .table-hover > tbody > tr:hover > td {
+    background-color: #404040 !important; /* Slightly lighter for hover, but maintains good contrast */
+}
+
+[data-theme="dark"] .table-dark {
+    background-color: var(--bg-tertiary);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .table-dark th {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .table td {
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+/* Ensure all text in table cells is light in dark mode */
+[data-theme="dark"] .table td,
+[data-theme="dark"] .table td * {
+    color: var(--text-color) !important;
+}
+
+/* Node names (strong tags) should be light and prominent */
+[data-theme="dark"] .table td strong {
+    color: #ffffff !important;
+    font-weight: 600;
+}
+
+/* Ensure small text is also light */
+[data-theme="dark"] .table td small {
+    color: var(--text-muted) !important;
+}
+
+/* Dark mode input group styling */
+[data-theme="dark"] .input-group-text {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .input-group .form-control {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .input-group .form-control:focus {
+    background-color: var(--bg-tertiary);
+    border-color: #007bff;
+    color: var(--text-color);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Custom path tooltip styling */
+.custom-path-tooltip {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    line-height: 1.5;
+}
+
+[data-theme="dark"] .custom-path-tooltip {
+    background-color: rgba(40, 40, 40, 0.95) !important;
+    color: var(--text-color) !important;
+    border: 1px solid var(--border-color);
+}
+
+/* Path modal dark mode styling */
+[data-theme="dark"] .paths-modal-content {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .paths-modal-header {
+    background-color: var(--card-header-bg);
+    border-bottom-color: var(--border-color);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .paths-modal-body {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .paths-modal-footer {
+    background-color: var(--card-header-bg);
+    border-top-color: var(--border-color);
+}
+
+[data-theme="dark"] .paths-list-group .path-list-item {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .paths-list-group .path-list-item:hover {
+    background-color: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .path-hex-code {
+    background-color: var(--bg-tertiary);
+    color: var(--text-color);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+[data-theme="dark"] .decoded-path-alert {
+    background-color: rgba(13, 110, 253, 0.2) !important;
+    border-color: rgba(13, 110, 253, 0.3) !important;
+    color: var(--text-color) !important;
+}
+
+[data-theme="dark"] .decoded-path-content {
+    color: var(--text-color);
+}
+</style>
+{% endblock %}

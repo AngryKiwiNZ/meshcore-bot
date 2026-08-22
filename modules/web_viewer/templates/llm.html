@@ -1,0 +1,403 @@
+{% extends "base.html" %}
+{% block title %}Conversations - MeshCore Bot{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1><i class="fas fa-comments"></i> LLM Conversations</h1>
+  <span id="status" class="badge bg-secondary">Checking LLM providers…</span>
+</div>
+<div id="health" class="alert alert-secondary">Loading runtime health…</div>
+<div class="alert alert-info">
+  Every non-command DM to the public Bot radio receives an LLM reply. Add a Bot-radio
+  contact here only to provide private profile context. The future Personal DM radio
+  remains explicitly authorised and fail-closed until that radio is connected.
+</div>
+<div class="alert alert-warning">
+  <strong>Disclosure boundary:</strong> the clearly labelled Bot radio truthfully identifies
+  itself as DeepSeek with Gemma fallback when asked. The Personal DM radio represents the
+  locally configured operator and does not disclose or volunteer automation details.
+</div>
+<div class="card mb-4"><div class="card-header">Model provider</div>
+<div class="card-body"><div class="row g-3 align-items-end">
+  <div class="col-md-3"><label class="form-label">Primary provider</label>
+    <select id="provider" class="form-select">
+      <option value="deepseek">DeepSeek API</option>
+      <option value="ollama">Local Gemma only</option>
+    </select></div>
+  <div class="col-md-3"><label class="form-label">DeepSeek model</label>
+    <select id="deepseekModel" class="form-select">
+      <option value="deepseek-v4-flash">V4 Flash — fast conversation</option>
+      <option value="deepseek-v4-pro">V4 Pro — higher quality/cost</option>
+    </select></div>
+  <div class="col-md-4"><label class="form-label">DeepSeek API key</label>
+    <input id="deepseekKey" class="form-control font-monospace" type="password"
+      autocomplete="new-password" placeholder="Leave blank to keep the saved key">
+    <div id="deepseekKeyState" class="form-text">No key status yet.</div></div>
+  <div class="col-md-2">
+    <div class="form-check form-switch mb-2">
+      <input id="fallbackOllama" class="form-check-input" type="checkbox">
+      <label class="form-check-label" for="fallbackOllama">Gemma fallback</label>
+    </div>
+    <button class="btn btn-outline-danger btn-sm" type="button" onclick="clearDeepSeekKey()">
+      Remove saved key
+    </button>
+  </div>
+  <div class="col-12"><div class="form-text">
+    DeepSeek receives the selected contact’s prompt, recent conversation history, and private
+    profile context. The API key is stored locally with owner-only permissions and is never
+    returned by this page.
+  </div></div>
+</div></div></div>
+<div class="card mb-4"><div class="card-header">Conversation behaviour</div>
+<div class="card-body"><div class="row g-3 align-items-end">
+  <div class="col-md-3"><label class="form-label">Maximum initial reply delay (seconds)</label>
+    <input id="maxDelay" class="form-control" type="number" min="0" max="600" step="1">
+    <div class="form-text">A new session waits randomly from 0 to this value. The session lasts 30 minutes.</div>
+  </div>
+  <div class="col-md-2"><label class="form-label">History retention (days)</label>
+    <input id="retentionDays" class="form-control" type="number" min="1" max="365" step="1">
+  </div>
+  <div class="col-md-4"><label class="form-label">Bot channel mentions</label>
+    <input id="mentionAliases" class="form-control" readonly></div>
+  <div class="col-md-3">
+    <div class="form-check form-switch mb-2">
+      <input id="globalEnabled" class="form-check-input" type="checkbox">
+      <label class="form-check-label" for="globalEnabled">LLM replies enabled</label>
+    </div>
+    <button class="btn btn-primary w-100" onclick="saveSettings()">Save behaviour</button>
+  </div>
+</div></div></div>
+<div class="card mb-4"><div class="card-header">Contact policy and private context</div>
+<div class="card-body"><form id="policyForm"><div class="row g-3">
+  <div class="col-md-4"><label class="form-label">Find known contact</label>
+    <input id="contactSearch" class="form-control" placeholder="Type a name to filter…"></div>
+  <div class="col-md-5"><label class="form-label">Known MeshCore contact</label>
+    <select id="knownContact" class="form-select" required>
+      <option value="">Loading known contacts…</option>
+    </select></div>
+  <div class="col-md-3"><label class="form-label">Reply radio</label>
+    <select id="radioId" class="form-select"><option value="bot">Bot radio</option>
+    <option value="dm">DM radio (not connected)</option></select></div>
+  <div class="col-md-4"><label class="form-label">Selected name</label>
+    <input id="contactName" class="form-control" readonly required></div>
+  <div class="col-md-8"><label class="form-label">Selected full public key</label>
+    <input id="publicKey" class="form-control font-monospace" readonly required></div>
+  <div class="col-md-4"><label class="form-label">DM interaction</label>
+    <select id="interactionMode" class="form-select">
+      <option value="automatic">Automatic conversation</option>
+    </select></div>
+  <div class="col-md-4"><label class="form-label">Profile scope</label>
+    <select id="profileScope" class="form-select">
+      <option value="dm">DMs only (current)</option>
+      <option value="all">All messages</option>
+    </select>
+    <div class="form-text">All messages applies this profile to channel LLM replies from this contact; it does not enable automatic channel replies.</div>
+  </div>
+  <div class="col-12"><div class="form-check form-switch">
+    <input id="enabled" class="form-check-input" type="checkbox">
+    <label class="form-check-label" for="enabled">Enable this contact policy and private context</label>
+  </div></div>
+  <div class="col-12"><label class="form-label">Private Markdown context</label>
+    <textarea id="profile" class="form-control font-monospace" rows="11"
+      maxlength="6000"
+      placeholder="# Person name&#10;&#10;How you know them, shared interests, preferred tone…"></textarea>
+    <div class="form-text">Stored in data/llm_profiles. Maximum 6,000 characters.
+      Avoid passwords and sensitive secrets. <span id="profileCount">0/6000</span></div>
+  </div>
+</div><button class="btn btn-primary mt-3" type="submit">Save policy</button>
+<button class="btn btn-outline-secondary mt-3" type="button" onclick="resetForm()">New contact</button>
+</form></div></div>
+<div class="card"><div class="card-header">Configured contacts</div><div class="table-responsive">
+<table class="table table-hover mb-0"><thead><tr><th>Contact</th><th>Key</th><th>Profile policy</th>
+<th>Radio</th><th>Scope</th><th>Messages</th><th></th></tr></thead><tbody id="contacts">
+<tr><td colspan="7" class="text-muted">Loading…</td></tr></tbody></table></div></div>
+<div class="card mt-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Conversation archive</span>
+    <span><span id="archiveRetention" class="text-muted small me-2">Last 30 days</span>
+      <button class="btn btn-sm btn-outline-secondary" onclick="loadConversations()">
+        Refresh
+      </button>
+    </span>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-lg-5">
+        <div id="conversationList" class="list-group">
+          <div class="text-muted">Loading conversations…</div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div id="transcriptHeader" class="fw-semibold mb-2">Select a conversation</div>
+        <div id="transcript" class="border rounded p-3 bg-body-tertiary"
+             style="min-height: 16rem; max-height: 38rem; overflow-y: auto;">
+          <div class="text-muted">Inbound messages and LLM replies will appear here.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="text-end mt-3">
+  <button class="btn btn-sm btn-outline-danger" onclick="clearAllHistory()">
+    Clear all conversation history
+  </button>
+</div>
+{% endblock %}
+{% block extra_css %}
+<style>
+  .conversation-item {
+    border-color: #d6dde4;
+    color: #1f2933;
+  }
+  .transcript-message {
+    max-width: 88%;
+    padding: 0.65rem 0.8rem;
+    border-radius: 0.55rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .transcript-inbound {
+    background: #f8fafc;
+    border: 1px solid #cbd5df;
+    color: #17212b;
+  }
+  .transcript-outbound {
+    background: #1769aa;
+    border: 1px solid #1769aa;
+    color: #ffffff;
+  }
+  .transcript-time { color: #65717d; }
+  .transcript-outbound .transcript-time { color: #d8eaff; }
+
+  [data-theme="dark"] .card,
+  [data-theme="dark"] .card-body {
+    background-color: #202a35;
+    color: #f1f5f9;
+  }
+  [data-theme="dark"] .card-header {
+    background-color: #2b3947;
+    border-color: #465769;
+    color: #ffffff;
+  }
+  [data-theme="dark"] .conversation-item {
+    background-color: #202a35;
+    border-color: #465769;
+    color: #f1f5f9;
+  }
+  [data-theme="dark"] .conversation-item:hover,
+  [data-theme="dark"] .conversation-item:focus {
+    background-color: #304153;
+    color: #ffffff;
+  }
+  [data-theme="dark"] .conversation-item.active {
+    background-color: #155985;
+    border-color: #67b8ea;
+    color: #ffffff;
+  }
+  [data-theme="dark"] #transcript {
+    background-color: #151e27 !important;
+    border-color: #465769 !important;
+    color: #eef4f8;
+  }
+  [data-theme="dark"] .transcript-inbound {
+    background-color: #2a3948;
+    border-color: #60758a;
+    color: #ffffff;
+  }
+  [data-theme="dark"] .transcript-outbound {
+    background-color: #176fa8;
+    border-color: #55b5eb;
+    color: #ffffff;
+  }
+  [data-theme="dark"] .transcript-time,
+  [data-theme="dark"] .transcript-outbound .transcript-time {
+    color: #c9d8e6;
+  }
+  [data-theme="dark"] .table > :not(caption) > * > * {
+    background-color: #202a35;
+    border-color: #465769;
+    color: #eef4f8;
+  }
+  [data-theme="dark"] .table-hover > tbody > tr:hover > * {
+    background-color: #304153 !important;
+    color: #ffffff;
+  }
+  [data-theme="dark"] .form-text,
+  [data-theme="dark"] .text-muted {
+    color: #bdc9d4 !important;
+  }
+</style>
+{% endblock %}
+{% block extra_js %}
+<script>
+let policies = [];
+let knownContacts = [];
+let archivedConversations = [];
+const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const bytes = value => value == null ? 'unknown' :
+  `${(Number(value)/1024/1024/1024).toFixed(1)} GB`;
+async function loadStatus() {
+  const data = await (await fetch('/api/llm/status')).json(), badge = document.getElementById('status');
+  const remoteSelected=data.provider==='deepseek', primaryReady=!remoteSelected||data.deepseek_key_configured;
+  badge.className = `badge ${primaryReady ? 'bg-success' : 'bg-warning text-dark'}`;
+  badge.textContent = remoteSelected
+    ? (data.deepseek_key_configured ? `${data.deepseek_model} primary` : 'DeepSeek key required')
+    : `${data.model} local`;
+  const runtime=data.runtime||{}, memory=data.memory||{}, loaded=data.loaded_models||[];
+  const active=runtime.active_conversation ? 'Generating' :
+    Number(runtime.queue_depth||0) ? 'Queued' : 'Idle';
+  const swapKind=memory.swap_is_zram ? 'compressed RAM (zram)' : 'disk swap';
+  health.className=`alert ${runtime.last_error?'alert-warning':'alert-secondary'}`;
+  health.innerHTML=`<strong>${esc(active)}</strong> · Queue ${Number(runtime.queue_depth||0)}/${Number(runtime.queue_limit||0)}
+    · Last provider ${esc(runtime.last_provider||'none')}
+    · Fallbacks ${Number(runtime.fallback_count||0)}
+    · Last generation ${runtime.last_duration_seconds==null?'none':`${Number(runtime.last_duration_seconds).toFixed(1)}s`}
+    · RAM available ${bytes(memory.available)}
+    · Swap used ${bytes(memory.swap_used)} (${swapKind})
+    · Model ${loaded.length?'loaded':'unloaded'}
+    ${runtime.last_error?`<br><strong>Last state:</strong> ${esc(runtime.last_error)}`:''}`;
+}
+async function loadSettings() {
+  const data=await (await fetch('/api/llm/settings')).json();
+  maxDelay.value=data.max_initial_delay_seconds; retentionDays.value=data.history_retention_days;
+  globalEnabled.checked=Boolean(data.globally_enabled); mentionAliases.value=data.mention_aliases;
+  provider.value=data.provider||'deepseek'; deepseekModel.value=data.deepseek_model||'deepseek-v4-flash';
+  fallbackOllama.checked=Boolean(data.fallback_to_ollama);
+  deepseekKeyState.textContent=data.deepseek_key_configured
+    ? 'A DeepSeek API key is configured.' : 'No DeepSeek API key is configured.';
+}
+async function saveSettings() {
+  const response=await fetch('/api/llm/settings',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({max_initial_delay_seconds:maxDelay.value,
+      history_retention_days:retentionDays.value,globally_enabled:globalEnabled.checked,
+      provider:provider.value,deepseek_model:deepseekModel.value,
+      fallback_to_ollama:fallbackOllama.checked,deepseek_api_key:deepseekKey.value})});
+  const data=await response.json(); if(!response.ok)return alert(data.error||'Unable to save settings');
+  deepseekKey.value=''; await loadSettings(); await loadStatus();
+}
+async function clearDeepSeekKey(){
+  if(!confirm('Remove the saved DeepSeek API key? Gemma fallback will still work.'))return;
+  const response=await fetch('/api/llm/settings',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({max_initial_delay_seconds:maxDelay.value,
+      history_retention_days:retentionDays.value,globally_enabled:globalEnabled.checked,
+      provider:provider.value,deepseek_model:deepseekModel.value,
+      fallback_to_ollama:fallbackOllama.checked,clear_deepseek_api_key:true})});
+  const data=await response.json(); if(!response.ok)return alert(data.error||'Unable to remove key');
+  await loadSettings(); await loadStatus();
+}
+function renderKnownContacts(filter='') {
+  const selected=publicKey.value, needle=filter.trim().toLowerCase();
+  const rows=knownContacts.filter(item =>
+    !needle || item.username.toLowerCase().includes(needle) ||
+    item.user_id.toLowerCase().includes(needle));
+  knownContact.innerHTML='<option value="">Choose a known contact…</option>'+rows.map(item =>
+    `<option value="${esc(item.user_id)}" ${item.user_id===selected?'selected':''}>`+
+    `${esc(item.username)} — ${esc(item.role||'unknown')} — ${esc(item.user_id.slice(0,12))}…</option>`
+  ).join('');
+}
+async function loadKnownContacts() {
+  const data=await (await fetch('/api/llm/known-contacts')).json();
+  const unique=new Map();
+  for(const item of (data.contacts||[])) {
+    if(item.user_id && !unique.has(item.user_id)) unique.set(item.user_id,{
+      user_id:String(item.user_id), username:String(item.username||item.user_id), role:String(item.role||'')
+    });
+  }
+  knownContacts=[...unique.values()].sort((a,b)=>a.username.localeCompare(b.username));
+  renderKnownContacts();
+}
+contactSearch.addEventListener('input',()=>renderKnownContacts(contactSearch.value));
+knownContact.addEventListener('change',()=>{
+  const item=knownContacts.find(contact=>contact.user_id===knownContact.value);
+  contactName.value=item?.username||''; publicKey.value=item?.user_id||'';
+});
+async function loadContacts() {
+  const data = await (await fetch('/api/llm/contacts')).json(); policies = data.contacts || [];
+  contacts.innerHTML = policies.length ? policies.map((p, i) => `<tr>
+    <td>${esc(p.contact_name)}</td><td class="font-monospace">${esc(p.public_key.slice(0,16))}…</td>
+    <td><span class="badge ${p.enabled?'bg-success':'bg-secondary'}">${p.enabled?'Enabled':'Disabled'}</span></td>
+    <td>${p.radio_id==='dm'?'DM radio':'Bot radio'}</td><td>${p.profile_scope==='all'?'All messages':'DMs only'}</td><td>${p.message_count}</td><td class="text-end">
+    <button class="btn btn-sm btn-outline-primary" onclick="editPolicy(${i})">Edit</button>
+    <button class="btn btn-sm btn-outline-danger" onclick="clearHistory('${esc(p.public_key)}')">Clear memory</button>
+    </td></tr>`).join('') : '<tr><td colspan="7" class="text-muted">No contact-specific profile policies are configured.</td></tr>';
+}
+const localTime = epoch => epoch ? new Date(Number(epoch)*1000).toLocaleString() : 'Unknown time';
+async function loadConversations(selectKey=null) {
+  const response=await fetch('/api/llm/conversations'), data=await response.json();
+  archivedConversations=data.conversations||[];
+  archiveRetention.textContent=`Last ${data.retention_days||30} days`;
+  conversationList.innerHTML=archivedConversations.length ? archivedConversations.map((item,index)=>{
+    const radio=item.kind==='channel'?'Channel':(item.radio_id==='dm'?'Personal DM radio':'Bot radio');
+    const preview=String(item.last_content||'').slice(0,100);
+    return `<button type="button" class="list-group-item list-group-item-action conversation-item"
+      data-index="${index}">
+      <div class="d-flex justify-content-between gap-2">
+        <strong>${esc(item.display_name)}</strong><small>${esc(localTime(item.last_at))}</small>
+      </div>
+      <div><span class="badge bg-secondary">${esc(radio)}</span>
+        <small class="text-muted">${item.inbound_count} received · ${item.reply_count} replies</small></div>
+      <div class="small text-truncate mt-1">${esc(preview)}</div>
+    </button>`;
+  }).join('') : '<div class="text-muted">No LLM conversations have been recorded yet.</div>';
+  document.querySelectorAll('.conversation-item').forEach(button =>
+    button.addEventListener('click',()=>openConversation(archivedConversations[Number(button.dataset.index)]))
+  );
+  if(selectKey) {
+    const selected=archivedConversations.find(item=>item.conversation_key===selectKey);
+    if(selected) await openConversation(selected);
+  }
+}
+async function openConversation(item) {
+  const response=await fetch(`/api/llm/conversation?key=${encodeURIComponent(item.conversation_key)}`);
+  const data=await response.json();
+  if(!response.ok) return alert(data.error||'Unable to load conversation');
+  const radio=item.kind==='channel'?'channel':(item.radio_id==='dm'?'Personal DM radio':'Bot radio');
+  transcriptHeader.textContent=`${item.display_name} · ${radio}`;
+  transcript.innerHTML=(data.messages||[]).map(message=>{
+    const inbound=message.role==='user';
+    const when=message.message_timestamp||message.created_at;
+    return `<div class="d-flex ${inbound?'justify-content-start':'justify-content-end'} mb-3">
+      <div class="transcript-message ${inbound?'transcript-inbound':'transcript-outbound'}">
+        <div class="small fw-semibold">${inbound?'Received':'LLM reply'}</div>
+        <div>${esc(message.content)}</div>
+        <div class="small transcript-time mt-1">${esc(localTime(when))}</div>
+      </div>
+    </div>`;
+  }).join('')+(data.truncated?'<div class="alert alert-warning">Only the latest 1,000 messages are shown.</div>':'');
+  transcript.scrollTop=transcript.scrollHeight;
+}
+async function editPolicy(index) {
+  const p=policies[index]; contactName.value=p.contact_name; publicKey.value=p.public_key;
+  contactSearch.value=p.contact_name; renderKnownContacts(p.contact_name);
+  knownContact.value=p.public_key; radioId.value=p.radio_id; enabled.checked=Boolean(p.enabled);
+  interactionMode.value=p.interaction_mode||'automatic'; profileScope.value=p.profile_scope||'dm';
+  const data=await (await fetch(`/api/llm/contacts/${p.public_key}/profile`)).json();
+  profile.value=data.profile||''; updateProfileCount(); window.scrollTo({top:0,behavior:'smooth'});
+}
+function updateProfileCount(){ profileCount.textContent=`${profile.value.length}/6000`; }
+profile.addEventListener('input',updateProfileCount);
+function resetForm(){ policyForm.reset(); profile.value=''; contactSearch.value=''; renderKnownContacts(); updateProfileCount(); }
+async function clearHistory(key){
+  if(!confirm('Clear this contact’s conversation memory? Their Markdown profile is kept.')) return;
+  await fetch(`/api/llm/contacts/${key}/history`,{method:'DELETE'});
+  await loadContacts(); await loadConversations();
+}
+async function clearAllHistory(){
+  if(!confirm('Clear every LLM conversation? Private Markdown profiles are kept.')) return;
+  await fetch('/api/llm/history',{method:'DELETE'});
+  transcriptHeader.textContent='Select a conversation';
+  transcript.innerHTML='<div class="text-muted">Inbound messages and LLM replies will appear here.</div>';
+  await loadContacts(); await loadConversations();
+}
+policyForm.addEventListener('submit',async event=>{
+  event.preventDefault();
+  const response=await fetch('/api/llm/contacts',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({contact_name:contactName.value,public_key:publicKey.value,
+      radio_id:radioId.value,interaction_mode:interactionMode.value,profile_scope:profileScope.value,
+      enabled:enabled.checked,profile:profile.value})});
+  const data=await response.json(); if(!response.ok)return alert(data.error||'Unable to save policy');
+  resetForm(); await loadContacts();
+});
+loadStatus(); loadSettings(); loadKnownContacts(); loadContacts(); loadConversations(); updateProfileCount();
+setInterval(loadStatus,15000);
+</script>
+{% endblock %}

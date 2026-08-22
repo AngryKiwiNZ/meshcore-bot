@@ -1,0 +1,634 @@
+{% extends "base.html" %}
+
+{% block title %}Repeater Monitor{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-tower-broadcast"></i> Repeater Monitor
+        </h1>
+    </div>
+</div>
+
+{% if web_write_access %}
+<div class="card mb-4 border-warning" id="polling-control-card">
+    <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <div class="fw-semibold"><i class="fas fa-power-off me-2"></i>Automatic Repeater Polling</div>
+            <div class="small text-muted">
+                Controls scheduled polling. Individual Poll Now and Clock Sync actions remain available.
+            </div>
+        </div>
+        <div class="form-check form-switch fs-5 mb-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="global-polling-toggle">
+            <label class="form-check-label" for="global-polling-toggle" id="global-polling-label">Loading...</label>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="fas fa-terminal me-2"></i>Bot Activity Now</span>
+        <span id="activity-current-status" class="small text-muted">Loading status...</span>
+    </div>
+    <div id="overview-activity-log" class="overview-activity-log" role="log" aria-live="polite">
+        <div class="activity-log-empty">Loading the latest repeater activity...</div>
+    </div>
+    <div class="card-footer small text-muted">Latest 15 lines across all repeaters; refreshes every 5 seconds.</div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <div class="text-muted">
+                            Monitor battery, clock, uptime, and signal data for configured and nearby repeaters.
+                        </div>
+                        <div class="small text-muted mt-1">
+                            Last viewer refresh: <span id="overview-updated">Loading...</span>
+                        </div>
+                        <div class="small text-muted mt-1">
+                            Monitor status: <span id="monitor-status">Loading...</span>
+                        </div>
+                    </div>
+                    <div class="small text-muted">Battery poll interval: 4 hours</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4" id="overview-summary">
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted text-uppercase small">Configured Repeaters</div>
+                <div id="summary-count" class="display-6">0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted text-uppercase small">Last Successful Poll</div>
+                <div id="summary-success" class="fs-5">n/a</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted text-uppercase small">Healthy Clocks</div>
+                <div id="summary-clocks" class="display-6">0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted text-uppercase small">Successful Status Reads</div>
+                <div id="summary-status" class="display-6">0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="refresh-feedback" class="mb-3" style="display: none;"></div>
+
+<div class="card mb-4" id="suppressed-repeaters-card" style="display: none;">
+    <div class="card-header"><i class="fas fa-rotate-left me-2"></i> Deleted Repeaters</div>
+    <div class="card-body">
+        <div class="small text-muted mb-3">
+            Restore one now, or it will restore automatically when a new repeater advert is received.
+        </div>
+        <div id="suppressed-repeaters-list" class="d-flex flex-wrap gap-2"></div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-tower-broadcast me-2"></i> Repeater List</span>
+        <span class="text-muted small">Click a repeater for full history</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Repeater</th>
+                        <th>Battery</th>
+                        <th>Clock</th>
+                        <th>Clock Drift</th>
+                        <th>Uptime</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="repeaters-table-body">
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">Loading repeater monitor data...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .health-badge {
+        border-radius: 999px;
+        padding: 0.35rem 0.7rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+    }
+    .health-good { background: rgba(25, 135, 84, 0.14); color: #198754; }
+    .health-warn { background: rgba(255, 193, 7, 0.18); color: #9c6c00; }
+    .health-bad { background: rgba(220, 53, 69, 0.16); color: #bb2d3b; }
+    .repeater-link {
+        color: inherit;
+        text-decoration: none;
+        font-weight: 600;
+    }
+    .repeater-link:hover {
+        text-decoration: underline;
+    }
+    .repeater-actions {
+        white-space: nowrap;
+    }
+    .summary-card .display-6,
+    .summary-card .fs-5 {
+        font-weight: 600;
+    }
+
+    .overview-activity-log {
+        min-height: 10rem;
+        max-height: 22rem;
+        overflow-y: auto;
+        padding: 0.85rem 1rem;
+        background: #111820;
+        color: #d8e2ec;
+        font: 0.84rem/1.5 SFMono-Regular, Consolas, "Liberation Mono", monospace;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+    .activity-log-line { display: flex; gap: 0.7rem; }
+    .activity-log-time { color: #8ca0b3; flex: 0 0 auto; }
+    .activity-log-target { color: #8ecbff; font-weight: 600; }
+    .activity-log-success { color: #75d69c; }
+    .activity-log-warning { color: #ffd166; }
+    .activity-log-error { color: #ff858f; }
+    .activity-log-empty { color: #8ca0b3; }
+
+    .sortable i {
+        opacity: 0.6;
+        transition: opacity 0.2s ease;
+    }
+
+    .sort-active i {
+        opacity: 1;
+        color: #0d6efd !important;
+    }
+
+    [data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) > td {
+        background-color: #293644;
+    }
+
+    [data-theme="dark"] .table-striped > tbody > tr:nth-of-type(even) > td {
+        background-color: #202a35;
+    }
+
+    [data-theme="dark"] .table-hover > tbody > tr:hover > td {
+        background-color: #35475a !important;
+    }
+
+    [data-theme="dark"] .table-dark {
+        background-color: var(--bg-tertiary);
+        color: var(--text-color);
+    }
+
+    [data-theme="dark"] .table-dark th {
+        background-color: #14202b;
+        border-color: #465769;
+        color: #ffffff;
+    }
+
+    [data-theme="dark"] .table td {
+        border-color: #465769;
+        color: #eef4f8;
+    }
+
+    [data-theme="dark"] .table td,
+    [data-theme="dark"] .table td * {
+        color: #eef4f8 !important;
+    }
+
+    [data-theme="dark"] .table td .small,
+    [data-theme="dark"] .table td small {
+        color: #bdc9d4 !important;
+    }
+
+    [data-theme="dark"] .card,
+    [data-theme="dark"] .card-body {
+        background-color: #202a35;
+        color: #f1f5f9;
+    }
+
+    [data-theme="dark"] .card-header {
+        background-color: #2b3947;
+        border-color: #465769;
+        color: #ffffff;
+    }
+
+    [data-theme="dark"] .repeater-link {
+        color: #8ecbff !important;
+    }
+
+    [data-theme="dark"] .health-good { background: #155c43; color: #e5fff5 !important; }
+    [data-theme="dark"] .health-warn { background: #715515; color: #fff5cf !important; }
+    [data-theme="dark"] .health-bad { background: #702f39; color: #ffe8eb !important; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function showRefreshFeedback(message, level = 'info') {
+        const feedback = document.getElementById('refresh-feedback');
+        feedback.className = `alert alert-${level} mb-3`;
+        feedback.textContent = message;
+        feedback.style.display = 'block';
+    }
+
+    async function setGlobalPolling(enabled) {
+        const toggle = document.getElementById('global-polling-toggle');
+        const label = document.getElementById('global-polling-label');
+        if (!toggle || !label) return;
+        toggle.disabled = true;
+        try {
+            const response = await fetch('/api/repeater-monitor/polling-enabled', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({enabled}),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            toggle.checked = data.polling_enabled;
+            label.textContent = data.polling_enabled ? 'Scheduled polling enabled' : 'Scheduled polling suspended';
+            showRefreshFeedback(data.message, data.polling_enabled ? 'success' : 'warning');
+            await loadMonitorStatus();
+        } catch (error) {
+            toggle.checked = !enabled;
+            showRefreshFeedback(`Unable to change polling state: ${error.message}`, 'danger');
+        } finally {
+            toggle.disabled = false;
+        }
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>'"]/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+        })[character]);
+    }
+
+    function formatDateTime(ts) {
+        const date = normalizeTimestamp(ts);
+        if (!date) return 'n/a';
+        return date.toLocaleString();
+    }
+
+    function normalizeTimestamp(ts) {
+        if (!ts) return null;
+        if (typeof ts === 'number') {
+            return new Date(ts * 1000);
+        }
+        const text = String(ts).trim();
+        if (!text) return null;
+        const numeric = Number(text);
+        if (!Number.isNaN(numeric)) {
+            return new Date(numeric * 1000);
+        }
+        const sqlMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(\.(\d+))?$/);
+        if (sqlMatch) {
+            const [, year, month, day, hour, minute, second, , fraction] = sqlMatch;
+            const milliseconds = fraction ? Number(fraction.slice(0, 3).padEnd(3, '0')) : 0;
+            return new Date(
+                Number(year),
+                Number(month) - 1,
+                Number(day),
+                Number(hour),
+                Number(minute),
+                Number(second),
+                milliseconds,
+            );
+        }
+        return new Date(text.replace(' ', 'T'));
+    }
+
+    function formatRelativeDayLabel(ts) {
+        const date = normalizeTimestamp(ts);
+        if (!date || Number.isNaN(date.getTime())) return 'n/a';
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        if (diffMs < 0) return '0 hours ago';
+        if (diffMs < 3600000) {
+            const diffMinutes = Math.max(1, Math.floor(diffMs / 60000));
+            return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
+        }
+        if (diffMs < 86400000) {
+            const diffHours = Math.floor(diffMs / 3600000);
+            return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+        }
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const diffDays = Math.round((startOfToday - startOfTarget) / 86400000);
+        if (diffDays === 1) return 'yesterday';
+        if (diffDays < 7) return `${diffDays} days ago`;
+        return formatDateTime(ts);
+    }
+
+    function formatDuration(seconds) {
+        if (seconds === null || seconds === undefined) return 'n/a';
+        const mins = Math.round(seconds / 60);
+        if (mins < 1) return `${Math.round(seconds)}s`;
+        if (mins < 60) return `${mins}m`;
+        const hours = Math.floor(mins / 60);
+        const rem = mins % 60;
+        return rem ? `${hours}h ${rem}m` : `${hours}h`;
+    }
+
+    function formatClock(node) {
+        if (node.last_clock_epoch === null || node.last_clock_epoch === undefined) return 'n/a';
+        return new Date(node.last_clock_epoch * 1000).toLocaleString();
+    }
+
+    function formatBattery(node) {
+        if (node.last_battery_mv === null || node.last_battery_mv === undefined) return 'n/a';
+        if (Number(node.last_battery_mv) === 0) return 'Battery Status Not Supported';
+        const pct = node.last_battery_percent === null || node.last_battery_percent === undefined
+            ? ''
+            : ` (${node.last_battery_percent}%)`;
+        return `${node.last_battery_mv} mV${pct}`;
+    }
+
+    function metricUpdatedAt(ts) {
+        if (!ts) return '<div class="small text-muted">Updated: n/a</div>';
+        return `<div class="small text-muted">Updated: ${formatRelativeDayLabel(ts)}</div>`;
+    }
+
+    function formatUptime(seconds) {
+        if (seconds === null || seconds === undefined) return 'n/a';
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        if (days > 0) return `${days}d ${hours}h`;
+        if (hours > 0) return `${hours}h ${mins}m`;
+        return `${mins}m`;
+    }
+
+    function humanizeMonitorError(errorText) {
+        const value = (errorText || '').trim();
+        if (!value) return '';
+        if (value === 'status_response_missing') return 'No telemetry response';
+        if (value === 'contact_not_found') return 'Contact not found';
+        if (value === 'login_failed') return 'Login failed';
+        if (value === 'advert_clock_unavailable') return 'No recent advert clock';
+        if (value === 'telemetry_only') return 'Telemetry only';
+        if (value.startsWith('status_exception:')) return 'Status request error';
+        if (value.startsWith('telemetry_exception:')) return 'Telemetry request error';
+        if (value.startsWith('login_exception:')) return 'Login exception';
+        return value.replaceAll('_', ' ');
+    }
+
+    function statusReason(node) {
+        if (node.last_status_ok && node.last_clock_ok) {
+            return '';
+        }
+        if (node.last_status_ok &&
+            (node.last_clock_drift_seconds === null || node.last_clock_drift_seconds === undefined)) {
+            return 'No recent advert clock';
+        }
+        if (node.last_status_ok) {
+            if (node.last_clock_drift_seconds === null || node.last_clock_drift_seconds === undefined) {
+                return 'Clock state unavailable';
+            }
+            return `Drift ${Math.abs(node.last_clock_drift_seconds).toFixed(0)}s`;
+        }
+        return humanizeMonitorError(node.last_error) || 'Telemetry unavailable';
+    }
+
+    function statusBadge(node) {
+        if (node.last_status_ok && node.last_clock_ok) {
+            return '<span class="health-badge health-good">Healthy</span>';
+        }
+        if (node.last_status_ok &&
+            (node.last_clock_drift_seconds === null || node.last_clock_drift_seconds === undefined)) {
+            return `<span class="health-badge health-warn">Clock Unavailable</span><div class="small text-muted mt-1">${statusReason(node)}</div>`;
+        }
+        if (node.last_status_ok) {
+            return `<span class="health-badge health-warn">Clock Drift</span><div class="small text-muted mt-1">${statusReason(node)}</div>`;
+        }
+        return `<span class="health-badge health-bad">Needs Attention</span><div class="small text-muted mt-1">${statusReason(node)}</div>`;
+    }
+
+    function renderDeleteAction(node) {
+        if (!window.webViewerCanWrite) {
+            return '<span class="text-muted small">Read only</span>';
+        }
+        const encodedNodeKey = encodeURIComponent(node.node_key);
+        const encodedName = encodeURIComponent(node.display_name || node.node_key);
+        return `
+            <button
+                type="button"
+                class="btn btn-sm btn-outline-danger repeater-delete-btn"
+                data-node-key="${encodedNodeKey}"
+                data-display-name="${encodedName}"
+                title="Delete repeater from monitor"
+            >
+                <i class="fas fa-trash"></i>
+            </button>
+        `;
+    }
+
+    async function deleteRepeater(encodedNodeKey, encodedDisplayName) {
+        const nodeKey = decodeURIComponent(encodedNodeKey);
+        const displayName = decodeURIComponent(encodedDisplayName);
+        const confirmed = confirm(
+            `Delete ${displayName} from the repeater monitor? You can restore it later, and a new advert from it will restore it automatically.`
+        );
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/repeater-monitor/node/${encodeURIComponent(nodeKey)}`, {
+                method: 'DELETE'
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || `HTTP ${response.status}`);
+            }
+            showRefreshFeedback(data.message || `Deleted repeater ${displayName}`, 'success');
+            await loadRepeaterOverview();
+            await loadSuppressedRepeaters();
+        } catch (error) {
+            showRefreshFeedback(`Failed to delete repeater: ${error.message}`, 'danger');
+        }
+    }
+
+    async function loadSuppressedRepeaters() {
+        const response = await fetch('/api/repeater-monitor/suppressed');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const card = document.getElementById('suppressed-repeaters-card');
+        const list = document.getElementById('suppressed-repeaters-list');
+        card.style.display = data.targets.length ? '' : 'none';
+        list.innerHTML = data.targets.map(target => `
+            <button type="button" class="btn btn-sm btn-outline-secondary repeater-restore-btn"
+                data-node-key="${encodeURIComponent(target.node_key)}">
+                <i class="fas fa-rotate-left me-1"></i>${escapeHtml(target.display_name)}
+            </button>
+        `).join('');
+    }
+
+    async function restoreRepeater(encodedNodeKey) {
+        const nodeKey = decodeURIComponent(encodedNodeKey);
+        try {
+            const response = await fetch(`/api/repeater-monitor/suppressed/${encodeURIComponent(nodeKey)}/restore`, {method: 'POST'});
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            showRefreshFeedback(data.message, 'success');
+            await loadSuppressedRepeaters();
+            await loadRepeaterOverview();
+        } catch (error) {
+            showRefreshFeedback(`Failed to restore repeater: ${error.message}`, 'danger');
+        }
+    }
+
+    async function loadRepeaterOverview() {
+        const response = await fetch('/api/repeater-monitor/overview');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        const toggle = document.getElementById('global-polling-toggle');
+        const label = document.getElementById('global-polling-label');
+        if (toggle && label) {
+            toggle.checked = data.polling_enabled !== false;
+            label.textContent = toggle.checked ? 'Scheduled polling enabled' : 'Scheduled polling suspended';
+        }
+        document.getElementById('overview-updated').textContent = formatDateTime(data.generated_at);
+        document.getElementById('summary-count').textContent = data.nodes.length;
+        const latestSuccess = data.nodes
+            .map(node => node.last_success_at || 0)
+            .reduce((max, value) => Math.max(max, value), 0);
+        document.getElementById('summary-success').textContent = latestSuccess ? formatDateTime(latestSuccess) : 'n/a';
+        document.getElementById('summary-clocks').textContent = data.nodes.filter(node => node.last_clock_ok).length;
+        document.getElementById('summary-status').textContent = data.nodes.filter(node => node.last_status_ok).length;
+
+        const tbody = document.getElementById('repeaters-table-body');
+        if (!data.nodes.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No repeater monitor nodes have been configured yet.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.nodes.map(node => `
+            <tr>
+                <td>
+                    <a class="repeater-link" href="/repeaters/${encodeURIComponent(node.node_key)}">${node.display_name}</a>
+                    <div class="small text-muted">${node.resolved_public_key || node.node_key}</div>
+                </td>
+                <td>${formatBattery(node)}${metricUpdatedAt(node.last_battery_updated_at)}</td>
+                <td>${formatClock(node)}${metricUpdatedAt(node.last_clock_updated_at)}</td>
+                <td>${node.last_clock_drift_seconds === null || node.last_clock_drift_seconds === undefined ? 'n/a' : `${node.last_clock_drift_seconds.toFixed(0)} s`}</td>
+                <td>${formatUptime(node.last_uptime_seconds)}</td>
+                <td>${statusBadge(node)}</td>
+                <td class="text-end repeater-actions">${renderDeleteAction(node)}</td>
+            </tr>
+        `).join('');
+    }
+
+    async function loadMonitorStatus() {
+        const response = await fetch('/api/repeater-monitor/status');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const status = await response.json();
+        const el = document.getElementById('monitor-status');
+        const activityStatus = document.getElementById('activity-current-status');
+        let statusText = status.state || 'Unknown';
+        if (status.polling_enabled === false && !['clock_sync', 'clock_sync_queued'].includes(status.state)) {
+            statusText = 'Scheduled polling suspended; Poll Now remains available';
+        } else if (status.state === 'polling') {
+            const target = status.current_target || 'unknown target';
+            const index = status.current_index && status.total_targets
+                ? ` (${status.current_index}/${status.total_targets})`
+                : '';
+            statusText = `Polling: ${target}${index}`;
+        } else if (status.state === 'clock_sync') {
+            statusText = `Clock Sync: ${status.current_target || 'unknown target'}`;
+        } else if (status.state === 'refresh_queued') {
+            statusText = status.active_target
+                ? `Individual poll queued; currently ${status.active_state === 'clock_sync' ? 'syncing' : 'polling'} ${status.active_target}`
+                : 'Individual poll queued; waiting for current work';
+        } else if (status.state === 'clock_sync_queued') {
+            statusText = status.active_target
+                ? `Clock Sync queued; currently ${status.active_state === 'clock_sync' ? 'syncing' : 'polling'} ${status.active_target}`
+                : 'Clock Sync queued; waiting for current work';
+        } else if (status.state === 'waiting_for_connection') {
+            statusText = 'Waiting for radio connection';
+        } else if (status.state === 'idle') {
+            statusText = 'Idle';
+        }
+        el.textContent = statusText;
+        activityStatus.textContent = statusText;
+
+        const log = document.getElementById('overview-activity-log');
+        const lines = status.activity_log || [];
+        if (!lines.length) {
+            log.innerHTML = '<div class="activity-log-empty">No repeater activity has been recorded yet.</div>';
+            return;
+        }
+        log.innerHTML = lines.map(line => {
+            const level = ['success', 'warning', 'error'].includes(line.level) ? line.level : 'info';
+            return `<div class="activity-log-line activity-log-${level}"><span class="activity-log-time">[${escapeHtml(formatDateTime(line.logged_at))}]</span><span><span class="activity-log-target">${escapeHtml(line.display_name)}</span> — ${escapeHtml(line.message)}</span></div>`;
+        }).join('');
+        log.scrollTop = log.scrollHeight;
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const pollingToggle = document.getElementById('global-polling-toggle');
+        if (pollingToggle) {
+            pollingToggle.addEventListener('change', () => setGlobalPolling(pollingToggle.checked));
+        }
+        document.addEventListener('click', (event) => {
+            const restoreButton = event.target.closest('.repeater-restore-btn');
+            if (restoreButton) {
+                restoreRepeater(restoreButton.dataset.nodeKey);
+                return;
+            }
+            const button = event.target.closest('.repeater-delete-btn');
+            if (!button) {
+                return;
+            }
+            deleteRepeater(button.dataset.nodeKey, button.dataset.displayName);
+        });
+
+        try {
+            await loadRepeaterOverview();
+            await loadSuppressedRepeaters();
+            await loadMonitorStatus();
+        } catch (error) {
+            document.getElementById('repeaters-table-body').innerHTML =
+                `<tr><td colspan="7" class="text-center py-4 text-danger">Failed to load repeater monitor data: ${error.message}</td></tr>`;
+        }
+        setInterval(() => {
+            loadMonitorStatus().catch(() => {});
+        }, 5000);
+    });
+</script>
+{% endblock %}

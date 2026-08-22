@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.meshcore.bot</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/meshcore-bot/venv/bin/python</string>
+        <string>/usr/local/meshcore-bot/meshcore_bot.py</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>/usr/local/meshcore-bot</string>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    
+    <key>StandardOutPath</key>
+    <string>/usr/local/var/log/meshcore-bot/meshcore-bot.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/usr/local/var/log/meshcore-bot/meshcore-bot.error.log</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>/usr/local/meshcore-bot</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+    
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    
+    <key>ProcessType</key>
+    <string>Background</string>
+    
+    <key>Nice</key>
+    <integer>1</integer>
+</dict>
+</plist>
+

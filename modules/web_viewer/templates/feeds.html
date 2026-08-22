@@ -1,0 +1,904 @@
+{% extends "base.html" %}
+
+{% block title %}Feed Management - MeshCore Bot{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="fas fa-rss"></i> Feed Management
+            </h1>
+            
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Total Subscriptions</h5>
+                            <h2 id="total-subscriptions">-</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Active Feeds</h5>
+                            <h2 id="active-feeds">-</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Items (24h)</h5>
+                            <h2 id="items-24h">-</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Active Errors</h5>
+                            <h2 id="active-errors">-</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Feed List -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Feed Subscriptions</h5>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addFeedModal">
+                        <i class="fas fa-plus"></i> Add Feed
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover" id="feedsTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Channel</th>
+                                    <th>Status</th>
+                                    <th>Last Check</th>
+                                    <th>Items</th>
+                                    <th>Errors</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="feedsTableBody">
+                                <tr>
+                                    <td colspan="9" class="text-center">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Feed Modal -->
+<div class="modal fade" id="addFeedModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="feedModalTitle">Add Feed Subscription</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="max-height: calc(100vh - 200px); overflow-y: auto;">
+                <form id="addFeedForm">
+                    <input type="hidden" id="feedId" name="feed_id">
+                    
+                    <!-- Basic Settings Row -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Feed Type</label>
+                            <select class="form-select" id="feedType" name="feed_type" required>
+                                <option value="rss">RSS Feed</option>
+                                <option value="api">API Feed</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Feed URL</label>
+                            <input type="url" class="form-control" id="feedUrl" name="feed_url" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Check Interval (seconds)</label>
+                            <input type="number" class="form-control" id="checkInterval" name="check_interval_seconds" value="300" min="60">
+                        </div>
+                    </div>
+                    
+                    <!-- Channel and Name Row -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Channel</label>
+                            <div class="input-group">
+                                <select class="form-select" id="channelSelect" name="channel_name" required>
+                                    <option value="">Select channel...</option>
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" id="createChannelBtn">
+                                    <i class="fas fa-plus"></i> New
+                                </button>
+                            </div>
+                            <div id="newChannelGroup" style="display: none;" class="mt-2">
+                                <input type="text" class="form-control form-control-sm" id="newChannelName" placeholder="#channelname">
+                                <small class="form-text text-muted">Channel will be created as hashtag channel</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Feed Name <small class="text-muted">(Optional)</small></label>
+                            <input type="text" class="form-control" id="feedName" name="feed_name" placeholder="My Feed">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Send Interval (seconds)</label>
+                            <input type="number" class="form-control" id="messageSendInterval" name="message_send_interval_seconds" value="2.0" min="0.5" step="0.1">
+                            <small class="form-text text-muted">Time between messages</small>
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <div class="form-check form-switch mb-2" title="Split long alerts into ordered messages">
+                                <input class="form-check-input" type="checkbox" id="chunkingEnabled" name="chunking_enabled">
+                                <label class="form-check-label" for="chunkingEnabled">Chunk</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Output Format Row -->
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">
+                                Output Format
+                                <button type="button" class="btn btn-sm btn-link p-0 ms-2" data-bs-toggle="collapse" data-bs-target="#formatHelp" aria-expanded="false">
+                                    <i class="fas fa-question-circle"></i> Help
+                                </button>
+                            </label>
+                            <textarea class="form-control font-monospace" id="outputFormat" name="output_format" rows="5" placeholder="{emoji} {body|truncate:100} - {date}\n{link|truncate:50}"></textarea>
+                            <div class="collapse mt-2" id="formatHelp">
+                                <div class="card card-body bg-light small" style="background-color: var(--bg-secondary) !important; color: var(--text-color) !important;">
+                                    <strong>Placeholders:</strong> {title}, {body}, {date}, {link}, {emoji}<br>
+                                    <strong>API Fields:</strong> {raw.field} or {raw.nested.field}<br>
+                                    <strong>Shortening:</strong> {field|truncate:N}, {field|word_wrap:N}, {field|first_words:N}<br>
+                                    <strong>Regex:</strong> {field|regex:pattern} or {field|regex:pattern:group}<br>
+                                    <strong>Conditional:</strong> {field|if_regex:pattern:then:else}<br>
+                                    <strong>Switch:</strong> {field|switch:value1:result1:value2:result2:...:default}<br>
+                                    <strong>Extract & Check:</strong> {field|regex_cond:extract_pattern:check_pattern:then:group}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-grid">
+                                <button type="button" class="btn btn-outline-primary" id="previewBtn" title="Preview format with live feed">
+                                    <i class="fas fa-eye"></i> Preview Format
+                                </button>
+                            </div>
+                            <div id="previewResults" style="display: none;" class="mt-3">
+                                <div class="card">
+                                    <div class="card-header py-2">
+                                        <h6 class="mb-0 small">Preview (first 3 items)</h6>
+                                    </div>
+                                    <div class="card-body p-2" id="previewContent" style="max-height: 200px; overflow-y: auto; font-size: 0.85rem;">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Advanced Options Accordion -->
+                    <div class="accordion mb-3" id="advancedOptions">
+                        <div class="accordion-item" id="apiConfigGroup" style="display: none;">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#apiConfigCollapse">
+                                    <i class="fas fa-cog me-2"></i> API Configuration
+                                </button>
+                            </h2>
+                            <div id="apiConfigCollapse" class="accordion-collapse collapse" data-bs-parent="#advancedOptions">
+                                <div class="accordion-body">
+                                    <textarea class="form-control font-monospace" id="apiConfig" name="api_config" rows="8" placeholder='{
+  "method": "GET",
+  "headers": {},
+  "params": {
+    "AccessCode": "YOUR_ACCESS_CODE"
+  },
+  "response_parser": {
+    "items_path": "",
+    "id_field": "AlertID",
+    "title_field": "HeadlineDescription",
+    "description_field": "ExtendedDescription",
+    "timestamp_field": "LastUpdatedTime"
+  }
+}'></textarea>
+                                    <small class="form-text text-muted mt-2 d-block">
+                                        Configure API request and parsing. Use <code>params</code> for query parameters (e.g., AccessCode for WSDOT) or <code>headers</code> for HTTP headers.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#filterConfigCollapse">
+                                    <i class="fas fa-filter me-2"></i> Filter Configuration <small class="text-muted ms-2">(Optional)</small>
+                                </button>
+                            </h2>
+                            <div id="filterConfigCollapse" class="accordion-collapse collapse" data-bs-parent="#advancedOptions">
+                                <div class="accordion-body">
+                                    <textarea class="form-control font-monospace" id="filterConfig" name="filter_config" rows="8" placeholder='{
+  "conditions": [
+    {
+      "field": "raw.Priority",
+      "operator": "in",
+      "values": ["highest", "high"]
+    },
+    {
+      "field": "raw.EventStatus",
+      "operator": "equals",
+      "value": "open"
+    }
+  ],
+  "logic": "AND"
+}'></textarea>
+                                    <small class="form-text text-muted mt-2 d-block">
+                                        Only send items that match these conditions. Leave empty to send all items.<br>
+                                        <strong>Operators:</strong> equals, not_equals, in, not_in, matches (regex), not_matches, contains, not_contains<br>
+                                        <strong>Logic:</strong> AND (all conditions) or OR (any condition)<br>
+                                        <strong>Fields:</strong> Use raw.field or raw.nested.field for API fields
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#sortConfigCollapse">
+                                    <i class="fas fa-sort me-2"></i> Sort Configuration <small class="text-muted ms-2">(Optional)</small>
+                                </button>
+                            </h2>
+                            <div id="sortConfigCollapse" class="accordion-collapse collapse" data-bs-parent="#advancedOptions">
+                                <div class="accordion-body">
+                                    <textarea class="form-control font-monospace" id="sortConfig" name="sort_config" rows="4" placeholder='{
+  "field": "raw.LastUpdatedTime",
+  "order": "desc"
+}'></textarea>
+                                    <small class="form-text text-muted mt-2 d-block">
+                                        Sort items before processing. Leave empty to use default order (oldest first).<br>
+                                        <strong>Field:</strong> Field path to sort by (e.g., raw.LastUpdatedTime, raw.Priority, published)<br>
+                                        <strong>Order:</strong> asc (ascending) or desc (descending)<br>
+                                        <strong>Note:</strong> Supports Microsoft date format /Date(timestamp-offset)/ (e.g., WSDOT API)
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveFeedBtn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Feed Details Modal -->
+<div class="modal fade" id="feedDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Feed Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="feedDetailsContent">
+                Loading...
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class FeedManager {
+    constructor() {
+        this.feeds = [];
+        this.channels = [];
+        this.initialize();
+    }
+    
+    async initialize() {
+        await this.loadChannels();
+        await this.loadFeeds();
+        await this.loadStatistics();
+        this.setupEventHandlers();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(() => this.loadFeeds(), 30000);
+        setInterval(() => this.loadStatistics(), 60000);
+    }
+    
+    async loadChannels() {
+        try {
+            const response = await fetch('/api/channels');
+            const data = await response.json();
+            this.channels = data.channels || [];
+            this.updateChannelSelect();
+        } catch (error) {
+            console.error('Error loading channels:', error);
+        }
+    }
+    
+    async loadFeeds() {
+        try {
+            const response = await fetch('/api/feeds');
+            const data = await response.json();
+            this.feeds = data.feeds || [];
+            this.renderFeeds();
+        } catch (error) {
+            console.error('Error loading feeds:', error);
+            this.showError('Failed to load feeds: ' + error.message);
+        }
+    }
+    
+    async loadStatistics() {
+        try {
+            const response = await fetch('/api/feeds/stats');
+            const data = await response.json();
+            
+            document.getElementById('total-subscriptions').textContent = data.total_subscriptions || 0;
+            document.getElementById('active-feeds').textContent = data.enabled_subscriptions || 0;
+            document.getElementById('items-24h').textContent = data.items_24h || 0;
+            document.getElementById('active-errors').textContent = data.active_errors || 0;
+        } catch (error) {
+            console.error('Error loading statistics:', error);
+        }
+    }
+    
+    updateChannelSelect() {
+        const select = document.getElementById('channelSelect');
+        select.innerHTML = '<option value="">Select channel...</option>';
+        
+        this.channels.forEach(channel => {
+            const option = document.createElement('option');
+            option.value = channel.name || channel.channel_name;
+            option.textContent = channel.name || channel.channel_name;
+            select.appendChild(option);
+        });
+    }
+    
+    renderFeeds() {
+        const tbody = document.getElementById('feedsTableBody');
+        
+        if (this.feeds.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center">No feed subscriptions</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = this.feeds.map(feed => {
+            const statusBadge = feed.enabled 
+                ? '<span class="badge bg-success">Enabled</span>'
+                : '<span class="badge bg-secondary">Disabled</span>';
+            
+            // Parse timestamp and convert to local time
+            let lastCheck = 'Never';
+            if (feed.last_check_time) {
+                try {
+                    // Handle ISO format with timezone, or SQLite format (treat as UTC)
+                    let dateStr = feed.last_check_time;
+                    // If it's SQLite format (YYYY-MM-DD HH:MM:SS), append 'Z' to indicate UTC
+                    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dateStr)) {
+                        dateStr = dateStr.replace(' ', 'T') + 'Z';
+                    }
+                    const date = new Date(dateStr);
+                    if (!isNaN(date.getTime())) {
+                        lastCheck = date.toLocaleString();
+                    }
+                } catch (e) {
+                    lastCheck = feed.last_check_time; // Fallback to raw value
+                }
+            }
+            
+            return `
+                <tr>
+                    <td>${feed.id}</td>
+                    <td>${feed.feed_name || feed.feed_url.substring(0, 30)}</td>
+                    <td><span class="badge bg-info">${feed.feed_type.toUpperCase()}</span></td>
+                    <td>${feed.channel_name}</td>
+                    <td>${statusBadge}</td>
+                    <td>${lastCheck}</td>
+                    <td>${feed.item_count || 0}</td>
+                    <td>${feed.error_count > 0 ? `<span class="badge bg-danger">${feed.error_count}</span>` : '0'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info" onclick="feedManager.viewFeed(${feed.id})" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick="feedManager.editFeed(${feed.id})" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-${feed.enabled ? 'warning' : 'success'}" onclick="feedManager.toggleFeed(${feed.id}, ${!feed.enabled})" title="${feed.enabled ? 'Disable' : 'Enable'}">
+                            <i class="fas fa-${feed.enabled ? 'pause' : 'play'}"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="feedManager.deleteFeed(${feed.id})" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+    
+    setupEventHandlers() {
+        // Feed type change
+        document.getElementById('feedType').addEventListener('change', (e) => {
+            const apiConfigGroup = document.getElementById('apiConfigGroup');
+            apiConfigGroup.style.display = e.target.value === 'api' ? 'block' : 'none';
+            // If switching to API, expand the API config accordion
+            if (e.target.value === 'api') {
+                const apiCollapseEl = document.getElementById('apiConfigCollapse');
+                if (apiCollapseEl) {
+                    const apiCollapse = new bootstrap.Collapse(apiCollapseEl, {show: true});
+                }
+            }
+        });
+        
+        // Create channel button
+        document.getElementById('createChannelBtn').addEventListener('click', () => {
+            const newChannelGroup = document.getElementById('newChannelGroup');
+            newChannelGroup.style.display = newChannelGroup.style.display === 'none' ? 'block' : 'none';
+        });
+        
+        // Save feed
+        document.getElementById('saveFeedBtn').addEventListener('click', () => this.saveFeed());
+        
+        // Preview button
+        document.getElementById('previewBtn').addEventListener('click', () => this.previewFormat());
+        
+        // Load default format when opening add modal
+        document.getElementById('addFeedModal').addEventListener('show.bs.modal', () => {
+            if (!document.getElementById('feedId').value) {
+                // Only load default if it's a new feed (not editing)
+                this.loadDefaultFormat();
+            }
+        });
+        
+        // Reset form when modal is hidden
+        document.getElementById('addFeedModal').addEventListener('hidden.bs.modal', () => {
+            this.resetForm();
+        });
+    }
+    
+    async editFeed(feedId) {
+        try {
+            const response = await fetch(`/api/feeds/${feedId}`);
+            const feed = await response.json();
+            
+            // Populate form with feed data
+            document.getElementById('feedId').value = feed.id;
+            document.getElementById('feedModalTitle').textContent = 'Edit Feed Subscription';
+            document.getElementById('feedType').value = feed.feed_type;
+            document.getElementById('feedUrl').value = feed.feed_url;
+            document.getElementById('feedUrl').disabled = true; // Don't allow changing URL
+            document.getElementById('channelSelect').value = feed.channel_name;
+            document.getElementById('feedName').value = feed.feed_name || '';
+            document.getElementById('checkInterval').value = feed.check_interval_seconds || 300;
+            
+            // Load default format if feed doesn't have a custom one
+            if (feed.output_format) {
+                document.getElementById('outputFormat').value = feed.output_format;
+            } else {
+                await this.loadDefaultFormat();
+            }
+            
+            document.getElementById('messageSendInterval').value = feed.message_send_interval_seconds || 2.0;
+            document.getElementById('chunkingEnabled').checked = Boolean(feed.chunking_enabled);
+            
+            if (feed.feed_type === 'api') {
+                document.getElementById('apiConfigGroup').style.display = 'block';
+                document.getElementById('apiConfig').value = feed.api_config ? JSON.stringify(JSON.parse(feed.api_config), null, 2) : '';
+                // Expand API config accordion when editing API feed
+                const apiCollapseEl = document.getElementById('apiConfigCollapse');
+                if (apiCollapseEl) {
+                    const apiCollapse = new bootstrap.Collapse(apiCollapseEl, {show: true});
+                }
+            } else {
+                document.getElementById('apiConfigGroup').style.display = 'none';
+            }
+            
+            // Load filter config if present
+            if (feed.filter_config) {
+                try {
+                    document.getElementById('filterConfig').value = JSON.stringify(JSON.parse(feed.filter_config), null, 2);
+                } catch (e) {
+                    document.getElementById('filterConfig').value = feed.filter_config;
+                }
+            } else {
+                document.getElementById('filterConfig').value = '';
+            }
+            
+            // Load sort config if present
+            if (feed.sort_config) {
+                try {
+                    document.getElementById('sortConfig').value = JSON.stringify(JSON.parse(feed.sort_config), null, 2);
+                } catch (e) {
+                    document.getElementById('sortConfig').value = feed.sort_config;
+                }
+            } else {
+                document.getElementById('sortConfig').value = '';
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('addFeedModal'));
+            modal.show();
+        } catch (error) {
+            this.showError('Error loading feed: ' + error.message);
+        }
+    }
+    
+    async saveFeed() {
+        const form = document.getElementById('addFeedForm');
+        const formData = new FormData(form);
+        const feedId = document.getElementById('feedId').value;
+        const isEdit = !!feedId;
+        
+        const data = {
+            feed_type: formData.get('feed_type'),
+            feed_url: formData.get('feed_url'),
+            channel_name: formData.get('channel_name') || document.getElementById('newChannelName').value,
+            feed_name: formData.get('feed_name') || null,
+            check_interval_seconds: parseInt(formData.get('check_interval_seconds')) || 300,
+            output_format: formData.get('output_format') || null,
+            message_send_interval_seconds: parseFloat(formData.get('message_send_interval_seconds')) || 2.0,
+            chunking_enabled: document.getElementById('chunkingEnabled').checked
+        };
+        
+        if (data.feed_type === 'api') {
+            const apiConfigText = document.getElementById('apiConfig').value;
+            if (apiConfigText) {
+                try {
+                    data.api_config = JSON.parse(apiConfigText);
+                } catch (e) {
+                    this.showError('Invalid API config JSON');
+                    return;
+                }
+            }
+        }
+        
+        // Parse filter config if provided
+        const filterConfigText = document.getElementById('filterConfig').value;
+        if (filterConfigText && filterConfigText.trim()) {
+            try {
+                data.filter_config = JSON.parse(filterConfigText);
+            } catch (e) {
+                this.showError('Invalid filter config JSON: ' + e.message);
+                return;
+            }
+        } else {
+            data.filter_config = null;
+        }
+        
+        // Parse sort config if provided
+        const sortConfigText = document.getElementById('sortConfig').value;
+        if (sortConfigText && sortConfigText.trim()) {
+            try {
+                data.sort_config = JSON.parse(sortConfigText);
+            } catch (e) {
+                this.showError('Invalid sort config JSON: ' + e.message);
+                return;
+            }
+        } else {
+            data.sort_config = null;
+        }
+        
+        try {
+            const url = isEdit ? `/api/feeds/${feedId}` : '/api/feeds';
+            const method = isEdit ? 'PUT' : 'POST';
+            
+            const response = await fetch(url, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                this.showSuccess(`Feed subscription ${isEdit ? 'updated' : 'created'}`);
+                bootstrap.Modal.getInstance(document.getElementById('addFeedModal')).hide();
+                this.resetForm();
+                await this.loadFeeds();
+                await this.loadStatistics();
+            } else {
+                this.showError(result.error || `Failed to ${isEdit ? 'update' : 'create'} feed`);
+            }
+        } catch (error) {
+            this.showError(`Error ${isEdit ? 'updating' : 'creating'} feed: ` + error.message);
+        }
+    }
+    
+    async loadDefaultFormat() {
+        try {
+            const response = await fetch('/api/feeds/default-format');
+            const data = await response.json();
+            document.getElementById('outputFormat').value = data.default_format || '{emoji} {body|truncate:100} - {date}\n{link|truncate:50}';
+        } catch (error) {
+            console.error('Error loading default format:', error);
+            // Fallback to hardcoded default
+            document.getElementById('outputFormat').value = '{emoji} {body|truncate:100} - {date}\n{link|truncate:50}';
+        }
+    }
+    
+    async previewFormat() {
+        const feedUrl = document.getElementById('feedUrl').value;
+        const feedType = document.getElementById('feedType').value;
+        const outputFormat = document.getElementById('outputFormat').value;
+        const apiConfigText = document.getElementById('apiConfig').value;
+        const filterConfigText = document.getElementById('filterConfig').value;
+        const sortConfigText = document.getElementById('sortConfig').value;
+        const chunkingEnabled = document.getElementById('chunkingEnabled').checked;
+        
+        if (!feedUrl) {
+            this.showError('Please enter a feed URL first');
+            return;
+        }
+        
+        if (!outputFormat) {
+            this.showError('Please enter an output format');
+            return;
+        }
+        
+        const previewResults = document.getElementById('previewResults');
+        const previewContent = document.getElementById('previewContent');
+        previewResults.style.display = 'block';
+        previewContent.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div>';
+        
+        try {
+            const data = {
+                feed_url: feedUrl,
+                feed_type: feedType,
+                output_format: outputFormat,
+                chunking_enabled: chunkingEnabled
+            };
+            
+            if (feedType === 'api' && apiConfigText) {
+                try {
+                    data.api_config = JSON.parse(apiConfigText);
+                } catch (e) {
+                    this.showError('Invalid API config JSON');
+                    previewResults.style.display = 'none';
+                    return;
+                }
+            }
+            
+            if (filterConfigText && filterConfigText.trim()) {
+                try {
+                    data.filter_config = JSON.parse(filterConfigText);
+                } catch (e) {
+                    this.showError('Invalid filter config JSON: ' + e.message);
+                    previewResults.style.display = 'none';
+                    return;
+                }
+            }
+            
+            if (sortConfigText && sortConfigText.trim()) {
+                try {
+                    data.sort_config = JSON.parse(sortConfigText);
+                } catch (e) {
+                    this.showError('Invalid sort config JSON: ' + e.message);
+                    previewResults.style.display = 'none';
+                    return;
+                }
+            }
+            
+            const response = await fetch('/api/feeds/preview', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.items) {
+                if (result.items.length === 0) {
+                    previewContent.innerHTML = '<p class="text-muted small mb-0">No items found in feed</p>';
+                } else {
+                    previewContent.innerHTML = result.items.map((item, index) => `
+                        <div class="mb-2 p-2 border rounded">
+                            <small class="text-muted d-block mb-1"><strong>Item ${index + 1}:</strong></small>
+                            ${(item.chunks || [item.formatted]).map((chunk, chunkIndex) => `
+                                <small class="text-muted">Message ${chunkIndex + 1}/${(item.chunks || [item.formatted]).length}</small>
+                                <pre class="mb-1 bg-light p-2 rounded small" style="white-space: pre-wrap; word-wrap: break-word; font-size: 0.8rem; background-color: var(--bg-secondary) !important; color: var(--text-color) !important;">${chunk}</pre>
+                            `).join('')}
+                        </div>
+                    `).join('');
+                }
+            } else {
+                previewContent.innerHTML = `<p class="text-danger small mb-0">Error: ${result.error || 'Failed to preview feed'}</p>`;
+            }
+        } catch (error) {
+            previewContent.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
+        }
+    }
+    
+    resetForm() {
+        const form = document.getElementById('addFeedForm');
+        form.reset();
+        document.getElementById('feedId').value = '';
+        document.getElementById('feedModalTitle').textContent = 'Add Feed Subscription';
+        document.getElementById('feedUrl').disabled = false;
+        document.getElementById('apiConfigGroup').style.display = 'none';
+        document.getElementById('newChannelGroup').style.display = 'none';
+        document.getElementById('previewResults').style.display = 'none';
+        document.getElementById('filterConfig').value = '';
+        document.getElementById('sortConfig').value = '';
+        document.getElementById('chunkingEnabled').checked = false;
+    }
+    
+    async viewFeed(feedId) {
+        try {
+            const response = await fetch(`/api/feeds/${feedId}`);
+            const feed = await response.json();
+            
+            const content = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Configuration</h6>
+                        <p><strong>Name:</strong> ${feed.feed_name || 'N/A'}</p>
+                        <p><strong>Type:</strong> ${feed.feed_type.toUpperCase()}</p>
+                        <p><strong>URL:</strong> ${feed.feed_url}</p>
+                        <p><strong>Channel:</strong> ${feed.channel_name}</p>
+                        <p><strong>Check Interval:</strong> ${feed.check_interval_seconds}s</p>
+                        <p><strong>Send Interval:</strong> ${feed.message_send_interval_seconds || 2.0}s</p>
+                        <p><strong>Chunking:</strong> ${feed.chunking_enabled ? 'Enabled' : 'Disabled'}</p>
+                        <p><strong>Status:</strong> ${feed.enabled ? 'Enabled' : 'Disabled'}</p>
+                        ${feed.output_format ? `<p><strong>Output Format:</strong><br><code class="small">${feed.output_format.replace(/\n/g, '<br>')}</code></p>` : ''}
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Activity</h6>
+                        <p><strong>Last Check:</strong> ${(() => {
+                            if (!feed.last_check_time) return 'Never';
+                            try {
+                                let dateStr = feed.last_check_time;
+                                if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dateStr)) {
+                                    dateStr = dateStr.replace(' ', 'T') + 'Z';
+                                }
+                                const date = new Date(dateStr);
+                                return !isNaN(date.getTime()) ? date.toLocaleString() : feed.last_check_time;
+                            } catch (e) {
+                                return feed.last_check_time;
+                            }
+                        })()}</p>
+                        <p><strong>Last Item:</strong> ${feed.last_item_id ? feed.last_item_id.substring(0, 30) + '...' : 'None'}</p>
+                        <p><strong>Total Items:</strong> ${feed.activity?.length || 0}</p>
+                        <p><strong>Errors:</strong> ${feed.errors?.length || 0}</p>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('feedDetailsContent').innerHTML = content;
+            const modal = new bootstrap.Modal(document.getElementById('feedDetailsModal'));
+            modal.show();
+        } catch (error) {
+            this.showError('Error loading feed details: ' + error.message);
+        }
+    }
+    
+    async toggleFeed(feedId, enabled) {
+        try {
+            const response = await fetch(`/api/feeds/${feedId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({enabled: enabled})
+            });
+            
+            if (response.ok) {
+                this.showSuccess(`Feed ${enabled ? 'enabled' : 'disabled'}`);
+                await this.loadFeeds();
+            } else {
+                const result = await response.json();
+                this.showError(result.error || 'Failed to update feed');
+            }
+        } catch (error) {
+            this.showError('Error updating feed: ' + error.message);
+        }
+    }
+    
+    async deleteFeed(feedId) {
+        if (!confirm('Are you sure you want to delete this feed subscription?')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/feeds/${feedId}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                this.showSuccess('Feed subscription deleted');
+                await this.loadFeeds();
+                await this.loadStatistics();
+            } else {
+                const result = await response.json();
+                this.showError(result.error || 'Failed to delete feed');
+            }
+        } catch (error) {
+            this.showError('Error deleting feed: ' + error.message);
+        }
+    }
+    
+    showError(message) {
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+        alert.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 300px;';
+        alert.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+        document.body.appendChild(alert);
+        setTimeout(() => alert.remove(), 5000);
+    }
+    
+    showSuccess(message) {
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-success alert-dismissible fade show position-fixed';
+        alert.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 300px;';
+        alert.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+        document.body.appendChild(alert);
+        setTimeout(() => alert.remove(), 3000);
+    }
+}
+
+// Initialize feed manager when page loads
+let feedManager;
+document.addEventListener('DOMContentLoaded', () => {
+    feedManager = new FeedManager();
+});
+</script>
+
+<style>
+/* Dark mode table styling with better contrast - matching contacts page */
+[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) > td {
+    background-color: #3a3a3a; /* Slightly lighter than even rows, but not too light */
+}
+
+[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(even) > td {
+    background-color: #2d2d2d; /* Darker gray (card-bg) */
+}
+
+[data-theme="dark"] .table-hover > tbody > tr:hover > td {
+    background-color: #404040 !important; /* Slightly lighter for hover, but maintains good contrast */
+}
+
+[data-theme="dark"] .table-dark {
+    background-color: var(--bg-tertiary);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .table-dark th {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .table td {
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+/* Ensure all text in table cells is light in dark mode */
+[data-theme="dark"] .table td,
+[data-theme="dark"] .table td * {
+    color: var(--text-color) !important;
+}
+
+/* Ensure small text is also light */
+[data-theme="dark"] .table td small {
+    color: var(--text-muted) !important;
+}
+</style>
+{% endblock %}

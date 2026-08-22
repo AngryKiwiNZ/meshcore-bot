@@ -1,0 +1,8 @@
+# One repeater per line:
+# public_key_or_unique_prefix,Display Name[,enabled]
+# Set enabled to disabled/false/off/no/0 to suppress an auto-discovered repeater.
+#
+# Examples:
+# 0123456789ab,Example Repeater
+# ce1dbff8202a,B2 - RAK4631 Repeater
+# ce1dbff8202a,B2 - RAK4631 Repeater,disabled
